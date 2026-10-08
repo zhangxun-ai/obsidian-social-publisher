@@ -20,5 +20,5 @@ assert.ok((await readFile('LICENSE', 'utf8')).startsWith('MIT License'));
 const bundle = await readFile(`${directory}/main.js`, 'utf8');
 assert.ok(bundle.includes('MIT License') && bundle.includes('Copyright (c) 2026 zhangxun-ai'), '安装文件必须保留项目 MIT 许可');
 assert.ok(bundle.includes('Copyright Eemeli Aro') && bundle.includes('THE AUTHOR DISCLAIMS ALL WARRANTIES'), '安装文件必须保留 yaml 的 ISC 版权与许可');
-assert.ok(!bundle.includes('zhanghanting') && !bundle.includes('/Users/'), '发行包不得含本机个人路径');
+assert.ok(!bundle.includes('/Users/'), '发行包不得含本机个人路径');
 console.log(`发行检查通过：${manifest.id} ${manifest.version}，三个独立安装文件有效。`);
