@@ -2,7 +2,7 @@
 
 在 Obsidian 中整理图文、关联本地素材、核对实际填写内容，再辅助填写小红书官方图文编辑页。
 
-当前版本：0.1.3，本地 MVP 已实现，MIT 开源。界面沿用已确认的 [GPT Image 设计稿](UI/index.html)。仅支持桌面 Obsidian 1.14.4 及以上；浏览器配套扩展为实验功能，平台草稿与直接发布尚未开放。
+当前版本：0.1.4，本地 MVP 已实现，MIT 开源。界面沿用已确认的 [GPT Image 设计稿](UI/index.html)。仅支持桌面 Obsidian 1.14.4 及以上；浏览器配套扩展为实验功能，平台草稿与直接发布尚未开放。
 
 已实现的主题、组件和容器布局约定见 [设计系统](DESIGN.md)。
 
@@ -50,7 +50,9 @@
 
 ## 浏览器辅助填写（实验）
 
-在 Chrome 116 及以上的扩展管理页开启开发者模式，加载本项目 `extension/` 目录。完整步骤与边界见 [扩展说明](extension/README.md)。
+浏览器安装入口见 [安装页与商店进度](https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html)。当前尚未提交商店审核，没有直接安装链接；审核通过后，在要使用的 Dia 或 Chrome 打开此页面，进入官方商店确认添加。Dia 实机安装尚未验证。
+
+开发者测试仍可在 Chrome 116 及以上的扩展管理页加载本项目 `extension/` 目录，这不是面向普通用户的一键安装方式。完整步骤与边界见 [扩展说明](extension/README.md)。
 
 1. 在插件「平台与账号」点击「开启本地连接」，按默认展开的连接说明安装配套扩展并复制配对码。
 2. 点击 Chrome 扩展图标打开浏览器工作台标签页，输入端口和配对码完成配对。保持该标签页打开。
@@ -109,3 +111,9 @@ npm run test-vault  # 创建独立 .dev-vault-social-publisher，并同步构建
 - `src/bridge.ts`、`extension/`：配对的回环桥接与限定官方页面的实验辅助填写。
 
 独立实现，按 [MIT License](LICENSE) 开源，未复制 MultiPost 或其他发布器代码。依赖 `yaml` 保留其 ISC 许可；Obsidian 类型包、esbuild 等为开发依赖。官方依据：[Obsidian Vault API](https://docs.obsidian.md/Reference/TypeScript%2BAPI/Vault)、[官方插件示例](https://github.com/obsidianmd/obsidian-sample-plugin)、[Bases 语法](https://obsidian.md/help/bases/syntax)、[Chrome scripting](https://developer.chrome.com/docs/extensions/reference/api/scripting)、[storage.session](https://developer.chrome.com/docs/extensions/reference/api/storage#property-session)。
+
+## 浏览器商店发行
+
+`npm run build` 同时生成 `dist/social-publisher-browser-版本.zip`，固定包含 12 个运行文件、图标与许可证，不包含个人知识库或配置。商店上传材料见 [store-listing](docs/store-listing.md)，图片见 [store-assets](docs/store-assets/README.md)，隐私政策公开在 [privacy](https://zhangxun-ai.github.io/obsidian-social-publisher/privacy.html)。
+
+实际提交后才将 `docs/browser-extension-release.json` 设为 `in_review`；审核通过并确认可安装的商店页面后，填写真实 `itemId` 并设为 `published`。ID 必须是 32 位 a–p 字符；安装页不会展示草稿、待审、无效 ID 或失败请求的安装按钮。安装仍需浏览器确认，不跨浏览器静默安装。

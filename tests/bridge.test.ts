@@ -284,7 +284,7 @@ const adapterSource = readFileSync(resolve('extension/adapter.js'), 'utf8');
 test('extension has no persistent injection, cookies, remote messaging or broad host permissions; worker only opens its workspace', () => {
   const manifest = JSON.parse(readFileSync(resolve('extension/manifest.json'), 'utf8'));
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ['activeTab', 'scripting', 'storage']);
+  assert.deepEqual(manifest.permissions, ['scripting', 'storage']);
   assert.deepEqual(manifest.host_permissions, ['http://127.0.0.1/*', 'https://creator.xiaohongshu.com/*']);
   assert.equal(manifest.content_scripts, undefined);
   assert.deepEqual(manifest.background, {service_worker: 'background.js'});

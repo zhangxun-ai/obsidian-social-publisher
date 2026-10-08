@@ -28,5 +28,6 @@ jobs:
             dist/social-publisher/main.js \
             dist/social-publisher/manifest.json \
             dist/social-publisher/styles.css \
+            "dist/social-publisher-browser-$RELEASE_TAG.zip" \
             --verify-tag --title "$RELEASE_TAG" \
             --notes-file "docs/releases/$RELEASE_TAG.md"

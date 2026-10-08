@@ -92,6 +92,10 @@ try {
   await run(`async(page)=>{const workspace=page.context().pages().find(p=>p.url().endsWith('/popup.html'));await workspace.locator('#account-status').filter({hasText:'已识别'}).waitFor({timeout:10000});return {recognized:true};}`);
   await waitFor(()=>service.accountState().detection?.status==='recognized');
   assert.equal(service.accountState().binding,null);
+  if(process.env.PUBLISHER_CAPTURE_STORE_ASSETS==='1'){
+    await mkdir(resolve(root,'docs/store-assets'),{recursive:true});
+    await run(`async(page)=>{const workspace=page.context().pages().find(p=>p.url().endsWith('/popup.html'));await workspace.setViewportSize({width:1280,height:800});await workspace.screenshot({path:'docs/store-assets/workspace-1280x800.png',mask:[workspace.locator('#token')],maskColor:'#e4e4eb'});return {syntheticStoreScreenshot:true};}`);
+  }
   console.log("Isolated-world official API mock and nonce report passed.");
   await service.bindAccount(service.accountState().detection.requestId);
   assert.equal(service.accountState().binding.accountId,accountId);

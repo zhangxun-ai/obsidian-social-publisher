@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Obsidian Social Publisher 配套浏览器扩展的隐私政策，说明账号检测、文案图片、本地连接及官方平台的数据处理。">
+<meta name="color-scheme" content="light dark">
+<title>隐私政策 · Social Publisher</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;color:#22222a;background:#f7f7fa;line-height:1.75;font-size:16px}*{box-sizing:border-box}body{margin:0;padding:64px 24px}main{max-width:720px;margin:auto}h1{font-size:32px;line-height:1.25;letter-spacing:-.025em;margin:12px 0 18px}h2{font-size:20px;line-height:1.4;margin:32px 0 10px}p{margin:12px 0}li{margin:8px 0}.muted,.eyebrow{color:#646472}.eyebrow{font-size:13px}a{color:#7654d5}a:focus-visible{outline:2px solid #7654d5;outline-offset:4px}code{font-size:.9em;overflow-wrap:anywhere}.boundary{border-top:1px solid #e4e4eb;margin-top:32px;padding-top:14px;font-size:14px}@media(max-width:480px){body{padding:32px 18px}h1{font-size:27px}}@media(prefers-color-scheme:dark){:root{background:#1e1e24;color:#e7e7ed}.muted,.eyebrow{color:#ababba}a{color:#bda8ff}.boundary{border-color:#444451}}
+</style>
+</head>
+<body>
+<main>
+<p class="eyebrow">SOCIAL PUBLISHER · 开发者 zhangxun-ai</p>
+<h1>隐私政策</h1>
+<p class="muted">更新日期：2026 年 10 月 8 日</p>
+<p>本政策适用于 Obsidian Social Publisher 配套浏览器扩展，以及它与 Social Publisher 桌面 Obsidian 插件通信时的数据处理。扩展的用途是：把你在 Obsidian 中明确确认的图文，辅助填写到你选择的小红书官方空白图文编辑器，并核对发布账号。</p>
+<p>扩展需要单独安装的 Obsidian 插件。当前填写适配属于实验功能，不会点击发布或保存草稿；最终结果仍需你在官方网页核实。本政策页面不表示扩展已通过商店审核。</p>
+
+<h2>我们处理哪些数据</h2>
+<ul>
+<li><strong>公开账号信息：</strong>小红书账号 ID、昵称及检测时间。扩展仅在你选择的官方创作后台页面识别账号，把结果经本机连接回传给插件。你确认绑定后，插件将这些信息保存在当前知识库的插件数据中，用于再次核对填写账号。</li>
+<li><strong>你确认的发布内容：</strong>标题、正文、图片、图片文件名与类型、账号备注、任务标识和填写结果。插件把已确认的任务传给扩展，扩展在内存中处理并交给你选择的官方编辑器。扩展不扫描或读取整个知识库，也没有任意文件读取接口。</li>
+<li><strong>有限的页面信息：</strong>扩展工作台读取当前浏览器窗口中小红书官方创作后台标签页的 URL、标题和标签页 ID，供你选择并校验目标页面。它不读取浏览器历史记录数据库，也不扫描一般网站的页面或浏览活动。</li>
+<li><strong>本机配对信息：</strong>你输入的本地连接端口和本次配对码，用于授权扩展连接当前 Obsidian 插件。</li>
+</ul>
+<p>扩展不请求 <code>activeTab</code>、<code>tabs</code>、<code>history</code> 或 <code>cookies</code> 权限。网页访问限于声明的小红书官方创作后台站点；本机通信限于 <code>127.0.0.1</code>。这不表示扩展完全不处理页面信息，上述有限的官方标签页信息仍用于选择目标。</p>
+
+<h2>如何检测登录账号</h2>
+<p>你在小红书官方网页自行登录。扩展在所选的 <code>https://creator.xiaohongshu.com/</code> 页面，以浏览器现有登录会话向固定的同源地址 <code>/api/galaxy/user/info</code> 发送 GET 请求。浏览器正常处理该请求的登录会话；扩展不读取、提取或导出 Cookie、密码、平台 token 或平台存储。</p>
+<p>扩展验证响应后，只返回账号检测状态、公开账号 ID 和昵称，不保存或转发完整响应。无法可靠识别时停止，不按昵称推测账号身份。仅在你已配对并保持扩展工作台打开时，扩展才响应插件发起的短期账号检测请求；后台服务不持续检测账号或注入网页。</p>
+
+<h2>数据会传到哪里</h2>
+<p>扩展与 Obsidian 插件之间通过本机回环地址 <code>127.0.0.1</code> 通信。插件服务由你开启，验证本机地址、扩展来源及本次配对码。账号信息、已确认的文案图片及填写结果不发送到开发者服务器。</p>
+<p><strong>辅助填写会把内容交给小红书官方网页。</strong>图片被放入网页上传控件后，可能立即由平台上传；标题和正文进入编辑器后，也可能由平台自动保存。即使没有点击最终发布，平台仍可能已经接收内容。账号检测请求及这些内容如何由平台保存和使用，遵循平台自己的规则和隐私政策。</p>
+<p>扩展不出售数据，不用于广告、分析或跟踪，没有支付、健康、定位或通信采集功能，不主动从这些来源读取数据。你选择的文案和图片可能包含个人信息，请在确认填写前自行检查。扩展不将数据用于与上述用途无关的目的或信贷评估。开发者不运营用于接收扩展用户数据的服务器。</p>
+
+<h2>保存时间和控制方式</h2>
+<ul>
+<li><strong>扩展配对码：</strong>保存在 <code>chrome.storage.session</code>，仅限当前浏览器会话，不使用浏览器同步存储。你可以在扩展工作台清除；关闭插件本地连接会立即使旧码失效。重新启动连接需再次配对。</li>
+<li><strong>发布内容：</strong>扩展不把任务文案和图片持久保存在浏览器存储中；工作台会在内存中保留当前任务信息。原始笔记与图片仍保存在你的知识库，扩展不会删除它们。</li>
+<li><strong>插件绑定和记录：</strong>公开账号绑定保存在当前知识库插件数据中；你可以在插件「平台与账号」解除绑定。插件本地保留最近最多 300 条任务记录，其中可包含作品路径、标题、账号、时间及结果。解除绑定不会自动删除作品或历史记录。</li>
+<li><strong>平台内容：</strong>已交给官方网页的内容不能通过清除本机配对撤回。需要处理平台上传、自动保存或已发布内容时，请使用平台自己的界面。</li>
+</ul>
+<p>如果你自行使用知识库同步、备份或浏览器配置同步工具，其数据处理由对应工具决定。本扩展不提供知识库云端同步，也不能控制你另行配置的备份。</p>
+
+<h2>其他服务与联系方式</h2>
+<p>源码、安装说明和问题反馈位于 GitHub。本隐私政策作为静态页面托管于 GitHub Pages；访问 GitHub 页面时，GitHub 自身可能按其政策处理访问请求。扩展本身不加载分析脚本、广告或远程执行代码。</p>
+<p>如有隐私问题，请通过 <a href="https://github.com/zhangxun-ai/obsidian-social-publisher/issues">GitHub Issues</a> 联系开发者 <strong>zhangxun-ai</strong>。Issues 是公开的，请不要提交配对码、密码、Cookie、私人账号值或私密素材。</p>
+<p>数据处理发生变化时，我们会更新此页面及日期，并使发布说明反映相关变化。</p>
+<div class="boundary"><a href="https://zhangxun-ai.github.io/obsidian-social-publisher/">返回安装说明</a> · <a href="https://github.com/zhangxun-ai/obsidian-social-publisher">查看源码</a></div>
+</main>
+</body>
+</html>

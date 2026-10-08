@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>安装 Social Publisher 浏览器扩展</title><link rel="icon" href="store-assets/icon.svg">
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;color:#22222a;background:#f7f7fa;line-height:1.65}*{box-sizing:border-box}body{margin:0;padding:48px 24px}main{max-width:640px;margin:auto}h1{font-size:30px;line-height:1.3;letter-spacing:-.025em;margin:18px 0}h2{font-size:19px;margin:28px 0 10px}p{margin:12px 0}a{color:#7654d5}a:focus-visible{outline:2px solid #7654d5;outline-offset:4px}.muted{color:#646472}.status{padding:16px 0;border-block:1px solid #e4e4eb}.actions{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0}.primary{background:#7654d5;color:#fff;text-decoration:none;padding:11px 18px;border-radius:5px;font-weight:600}li{margin:10px 0}footer{border-top:1px solid #e4e4eb;margin-top:30px;padding-top:16px;font-size:14px}[hidden]{display:none!important}@media(max-width:480px){body{padding:28px 18px}h1{font-size:27px}.actions a{width:100%;text-align:center}}@media(prefers-color-scheme:dark){:root{color:#e7e7ed;background:#1e1e24}.muted{color:#ababba}a{color:#bda8ff}.primary{color:#fff}.status,footer{border-color:#444451}}
+</style>
+</head>
+<body><main>
+<a href="./">返回 Obsidian 插件安装页</a>
+<h1>安装浏览器扩展</h1>
+<p>配套扩展负责检测当前小红书账号，并把你已确认的内容填写到官方编辑器。仅在网页中登录，Obsidian 还不能收到账号信息。</p>
+<section class="status" aria-live="polite"><strong id="release-status">商店安装尚未开放</strong><p id="release-detail">正在准备 Chrome 网上应用店提交材料，尚未提交审核。当前没有可用的商店安装链接。</p></section>
+<div id="store-actions" class="actions" hidden><a id="add-browser" class="primary" rel="noopener" target="_blank">前往商店添加扩展</a></div>
+<p id="browser-help" class="muted" hidden>请在要使用的 Dia 或 Chrome 中打开本页。按钮前往同一个官方商店页面，在当前浏览器确认添加，不会自动安装到另一个浏览器。</p>
+<h2>安装后，绑定你已登录的账号</h2>
+<ol><li>在 Obsidian「平台与账号」开启本地连接，复制本次配对码。</li><li>在安装扩展的同一个浏览器中打开小红书官方后台，已登录可跳过登录。</li><li>点击扩展图标打开工作台，填写 Obsidian 显示的端口和配对码，完成配对。保持工作台标签页打开。</li><li>回 Obsidian 点击「检测登录状态」，核对昵称后确认绑定。</li></ol>
+<details><summary>开发者测试方式</summary><p>商店审核前，仅能在浏览器开发者模式中加载源码目录。这个方式用于开发测试，不是商店一键安装。</p><a href="https://github.com/zhangxun-ai/obsidian-social-publisher/tree/main/extension">查看源码测试说明</a></details>
+<footer><a href="privacy.html">隐私政策</a> · <a href="https://github.com/zhangxun-ai/obsidian-social-publisher/issues">反馈问题</a><p class="muted">账号密码与网页登录会话留在浏览器中。辅助填写为实验功能；图片上传仍待真实平台验收，最终发布需要你在官方页面确认。</p></footer>
+</main><script src="browser-extension.js"></script></body></html>

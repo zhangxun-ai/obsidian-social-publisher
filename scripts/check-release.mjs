@@ -23,4 +23,13 @@ const bundle = await readFile(`${directory}/main.js`, 'utf8');
 assert.ok(bundle.includes('MIT License') && bundle.includes('Copyright (c) 2026 zhangxun-ai'), '安装文件必须保留项目 MIT 许可');
 assert.ok(bundle.includes('Copyright Eemeli Aro') && bundle.includes('THE AUTHOR DISCLAIMS ALL WARRANTIES'), '安装文件必须保留 yaml 的 ISC 版权与许可');
 assert.ok(!bundle.includes('/Users/'), '发行包不得含本机个人路径');
+for(const size of [16,32,48,128]){
+  const icon=await readFile(`extension/${extension.icons[size]}`);
+  assert.equal(icon.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
+  assert.equal(icon.readUInt32BE(16),size);assert.equal(icon.readUInt32BE(20),size);
+}
+const archive=await readFile(`dist/social-publisher-browser-${manifest.version}.zip`);
+assert.equal(archive.readUInt32LE(0),0x04034b50);
+assert.equal(archive.readUInt32LE(archive.length-22),0x06054b50);
+assert.equal(archive.readUInt16LE(archive.length-12),12,'仅包含扩展运行文件、图标与许可证');
 console.log(`发行检查通过：${manifest.id} ${manifest.version}，三个独立安装文件有效。`);

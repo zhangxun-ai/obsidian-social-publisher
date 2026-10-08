@@ -10,8 +10,8 @@
 - 小红书绑定仅保存公开账号 ID、昵称和检测时间；网页登录凭据留在浏览器。作品指纹包含账号 ID；扩展在领取及填写前实际核对，不以昵称或旧账号备注推断登录。扩展工作台用持久标签页，配对变化需通知插件刷新。
 - 浏览器衔接只传用户确认的快照，监听地址限回环，需配对授权；不读取 Cookie、密码或任意文件。
 - 开发与验收命令以 package.json、README.md 为准。测试使用合成内容和独立测试库，日常知识库不作自动化测试场地。
-- 提交、推送与代码发行按当前任务授权执行；真实平台发帖需单独授权。发行约定、BRAT 入口和社区市场状态见 docs/distribution.md。
+- 提交、推送与代码发行按当前任务授权执行；真实平台发帖需单独授权。发行约定、BRAT 入口和社区市场状态见 docs/distribution.md。浏览器商店提交见 docs/store-listing.md；安装状态单一来源为 docs/browser-extension-release.json，只有实际审核通过且页面可安装才可标为 published。
 
-实测命令（项目根、Node.js 22）：`npm run check` 完成类型检查、回归和构建；`npm run preview` 启动合成界面，端口冲突使用 `PUBLISHER_PREVIEW_PORT=4179`；`npm run test-vault` 创建/更新独立测试库。原生与平台验证边界见 docs/verification.md。
+实测命令（项目根、Node.js 22）：`npm run check` 完成类型检查、回归、构建及固定清单浏览器商店 ZIP 检查；`npm run preview` 启动合成界面，端口冲突使用 `PUBLISHER_PREVIEW_PORT=4179`；`npm run test-vault` 创建/更新独立测试库。原生与平台验证边界见 docs/verification.md。
 
 插件 ID 固定为 `social-publisher`，仓库名称为 `obsidian-social-publisher`。发行 tag 与 manifest/package 版本必须一致且不带 v；`npm run check:release` 检查发行附件与版本，Release 工作流从 dist/social-publisher 上传三份独立文件。测试库是 .dev-vault-social-publisher，禁止提交个人知识库、data.json 或本地会话产物。

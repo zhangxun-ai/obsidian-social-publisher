@@ -352,7 +352,7 @@ export class PublisherUI {
     const details = el('details', 'sp-account-connection');
     details.open = !connection.paired;
     details.append(el('summary', '', connection.paired ? '浏览器扩展已连接' : '先连接浏览器扩展'));
-    details.append(el('p', 'sp-muted', '在登录小红书的同一个 Chrome 浏览器中安装配套扩展。已登录小红书无需再次登录。'), button('查看扩展安装说明', () => window.open('https://github.com/zhangxun-ai/obsidian-social-publisher/tree/main/extension', '_blank'), 'sp-text'));
+    details.append(el('p', 'sp-muted', '在登录小红书的同一个 Dia 或 Chrome 浏览器中安装配套扩展。已登录小红书无需再次登录。'), button('安装浏览器扩展', () => window.open('https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html', '_blank'), 'sp-text'));
     details.append(el('p', 'sp-muted', connection.running ? '点击浏览器中的扩展图标打开工作台，填入下方端口和配对码，点击「配对并读取待填写作品」。保持工作台标签页打开，再回这里检测账号。' : '安装扩展后，开启下方本地连接，获取端口和配对码，再到浏览器扩展工作台完成配对。'));
     if (connection.running) {
       const token = input(connection.token, '账号检测配对码', () => {}, 'password'); token.readOnly = true; token.autocomplete = 'off';
@@ -393,7 +393,7 @@ export class PublisherUI {
     login.append(steps, el('p', 'sp-muted', '登录完成后，确认昵称和账号标识，再绑定到此知识库。'), el('div', 'sp-actions sp-account-actions',
       button('打开小红书登录页', () => this.runtime?.openLogin(), '', !this.runtime),
       button('检测登录状态', () => this.run(async () => { await this.host.requestAccountDetection!(); }), 'sp-primary', !state?.paired || !this.host.requestAccountDetection || detection?.status === 'waiting')),
-      el('p', 'sp-muted', '登录页会在系统默认浏览器打开。若不是安装扩展的 Chrome，请在该 Chrome 中打开 creator.xiaohongshu.com。'));
+      el('p', 'sp-muted', '登录页会在系统默认浏览器打开。若不是安装扩展的浏览器，请在同一个 Dia 或 Chrome 中打开 creator.xiaohongshu.com。'));
     const feedback = el('div', 'sp-account-feedback'); feedback.setAttribute('role', 'status');
     if (fresh && detected) {
       feedback.append(el('strong', '', `${detected.nickname} · ${detected.accountId}`), el('p', 'sp-muted', `检测时间：${new Date(detection!.checkedAt).toLocaleTimeString('zh-CN')}`));
