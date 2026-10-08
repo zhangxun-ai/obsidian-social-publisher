@@ -26,7 +26,7 @@ Obsidian 1.14.4 的独立设置窗口可能承载 BRAT 安装弹窗，但外部�
 
 修改 `manifest.json` 与 `package.json` 到同一 `x.y.z` 版本；同步锁文件和 `versions.json`，新增对应 `docs/releases/x.y.z.md`。在项目根运行 `npm ci`、`npm run check`。通过后提交推送，并推送相同版本的 tag（不带 `v`）。Release 工作流会重新安装依赖、运行检查，再上传三个安装附件。main 分支和 PR 的 Check 工作流也会执行完整检查。
 
-Release 不包含个人知识库、插件 data.json、本地测试库、截图会话或缓存。浏览器配套扩展目前仍需在 Chrome 加载 extension 目录；Obsidian 的安装入口只安装 Obsidian 插件。
+Release 不包含个人知识库、插件 data.json、本地测试库、截图会话或缓存。Obsidian 的安装入口只安装 Obsidian 插件。浏览器扩展 0.1.4 已于 2026-10-08 提交 Chrome 网上应用店审核，条目 ID 为 `lomabfdifikkjdpkdlbpkbaeopglanna`，免费、不公开分发（知道链接即可访问），审核通过后自动发布。当前不能通过商店安装；[浏览器安装页](https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html)读取 `browser-extension-release.json`，只有人工核实已通过且商店页面可安装后才开放添加入口。
 
 HTTPS 安装页由 GitHub Pages 从 main 分支的 /docs 发布；更新 docs/index.html 并推送后自动重新部署。原生验证使用 BRAT 的“添加 Beta 插件”流程，最后的版本选择与安装确认由用户完成；自动化浏览器对 obsidian:// 的跳转拦截未绕过。
 
@@ -36,4 +36,4 @@ HTTPS 安装页由 GitHub Pages 从 main 分支的 /docs 发布；更新 docs/in
 
 工作台「平台与账号」和「设置」显示当前版本，点击「检查更新」执行已核实的 BRAT `obsidian42-brat:updateOnePlugin` 单插件选择命令。用户选择本仓库和最新版本；不会更新其他 Beta 插件，也不会把打开选择窗口显示为更新成功。未启用 BRAT 时明确提示恢复方式。旧版用户仍可从命令面板调用该命令，或在 BRAT 中将本仓库设置为 `latest` 后更新，无需卸载。
 
-账号绑定是插件本地设置，卸载插件可能丢失此记录；正文与素材仍是知识库文件。配套 Chrome 扩展需单独同步 extension 文件并重新加载，BRAT 不更新 Chrome 扩展。
+账号绑定是插件本地设置，卸载插件可能丢失此记录；正文与素材仍是知识库文件。BRAT 不更新浏览器扩展。源码开发测试需要单独同步 extension 文件并重新加载；通过商店安装后由浏览器管理扩展更新。

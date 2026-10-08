@@ -50,7 +50,7 @@
 
 ## 浏览器辅助填写（实验）
 
-浏览器安装入口见 [安装页与商店进度](https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html)。当前尚未提交商店审核，没有直接安装链接；审核通过后，在要使用的 Dia 或 Chrome 打开此页面，进入官方商店确认添加。Dia 实机安装尚未验证。
+浏览器安装入口见 [安装页与商店进度](https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html)。0.1.4 已于 2026-10-08 提交 Chrome 网上应用店审核，当前不能通过商店安装。已选择审核通过后自动发布；核实商店页面可安装后，本页才开放添加入口。届时在要使用的 Dia 或 Chrome 打开此页面，进入官方商店确认添加。商店安装与 Dia 实机安装尚未验证。
 
 开发者测试仍可在 Chrome 116 及以上的扩展管理页加载本项目 `extension/` 目录，这不是面向普通用户的一键安装方式。完整步骤与边界见 [扩展说明](extension/README.md)。
 

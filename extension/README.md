@@ -1,6 +1,6 @@
 # 配套浏览器扩展（实验适配）
 
-面向用户的安装入口：[浏览器安装页与商店进度](https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html)。当前尚未提交商店审核，没有可用的一键添加链接。以下加载源码步骤仅用于开发测试。商店提交包及资料见 [上架材料](../docs/store-listing.md)。
+面向用户的安装入口：[浏览器安装页与商店进度](https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html)。0.1.4 已于 2026-10-08 提交 Chrome 网上应用店审核，目前不能通过商店安装；审核通过并核实可安装后开放添加入口。以下加载源码步骤仅用于开发测试。商店提交包、真实条目 ID 和提交记录见 [上架材料](../docs/store-listing.md)。
 
 支持 Chrome 116 或以上。工作台通过 `chrome.runtime.getContexts` 查找自身页面并复用，不请求读取所有浏览标签页的 `tabs` 权限。
 
