@@ -378,6 +378,36 @@ test('synthetic DOM: uncertain or changed controls fail safely and never claim s
   assert.equal(changed.window.document.querySelector('input[placeholder]').value, '网页自己的已有内容');
 });
 
+test('pairing requests a fresh account check and only an authorized paired extension can request another', async (t) => {
+  let checks = 0;
+  const f = await fixture({requestAccountDetection: () => { checks += 1; }});
+  t.after(() => f.bridge.stop());
+  assert.equal((await f.call('/account-detect', {})).status, 403);
+  assert.equal((await f.call('/account-detect', {}, { Origin: 'https://creator.xiaohongshu.com' })).status, 403);
+  assert.equal((await f.call('/pair', {cookie: 'rejected'})).status, 400);
+  assert.equal(checks, 0);
+  assert.equal((await f.pair()).status, 200);
+  assert.equal(checks, 1);
+  assert.equal((await f.call('/account-detect', {}, { Origin: OTHER_ORIGIN })).status, 403);
+  assert.equal((await f.call('/account-detect', {}, { Authorization: 'Bearer wrong' })).status, 401);
+  assert.equal((await f.call('/account-detect', {cookie: 'rejected'})).status, 400);
+  assert.equal((await f.call('/account-detect')).status, 405);
+  assert.equal(checks, 1);
+  const detection = await f.call('/account-detect', {});
+  assert.equal(detection.status, 200);
+  assert.deepEqual(await detection.json(), {requested: true});
+  assert.equal(checks, 2);
+  assert.equal((await f.pair()).status, 200);
+  assert.equal(checks, 3);
+});
+
+test('a provider without account detection keeps pairing compatibility without claiming to request a check', async (t) => {
+  const f = await fixture();
+  t.after(() => f.bridge.stop());
+  assert.equal((await f.pair()).status, 200);
+  assert.equal((await f.call('/account-detect', {})).status, 409);
+});
+
 test('account reports require the paired extension, a current one-time nonce, and only public metadata', async (t) => {
   let pending = {requestId: 'detect-one', platform: 'xiaohongshu' as const, expiresAt: Date.now() + 60_000};
   const reports: unknown[] = [];

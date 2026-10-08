@@ -49,49 +49,61 @@ test('account UI requires explicit confirmation and does not infer login from a 
   try {
     await ui.mount();btn('平台与账号').click();assert.match(root.textContent,/尚未绑定账号/);
     btn('打开小红书登录页').click();assert.equal(loginCalls,1);assert.equal(state.binding,null);
-    assert.equal(root.querySelector('[aria-label="发布账号"]').disabled,true);
-    btn('检测登录状态').click();await tick();assert.match(root.textContent,/等待浏览器检测/);assert.deepEqual(confirmed,[]);
+    assert.doesNotMatch(root.textContent,/原账号备注/);
+    btn('检测登录状态').click();await tick();assert.match(root.textContent,/正在检测账号/);assert.deepEqual(confirmed,[]);
     state.detection={requestId:'fresh-nonce',status:'recognized',checkedAt:Date.now(),account:{platform:'xiaohongshu',accountId:'account-001',nickname:'合成账号',checkedAt:Date.now()}};
     await ui.reload();assert.match(root.textContent,/合成账号 · account-001/);assert.equal(state.binding,null);
     btn('确认并绑定此账号').click();await tick();assert.deepEqual(confirmed,['fresh-nonce']);assert.match(root.textContent,/已核对账号/);
-    state.detection={...state.detection!,account:{...state.binding!,accountId:'account-002',nickname:'另一个合成账号'}};
-    await ui.reload();assert.match(root.textContent,/账号与绑定不一致/);assert.equal(state.binding!.accountId,'account-001');
-    state.detection={...state.detection!,checkedAt:Date.now()-120_001};await ui.reload();assert.match(root.textContent,/检测结果已过期/);assert.equal(btn('确认更换绑定账号'),undefined);
+    state.detection={...state.detection!,requestId:'replacement-nonce',account:{...state.binding!,accountId:'account-002',nickname:'另一个合成账号'}};
+    await ui.reload();assert.match(root.textContent,/检测到另一个账号/);assert.equal(state.binding!.accountId,'account-001');
+    btn('确认更换绑定账号').click();await tick();assert.deepEqual(confirmed,['fresh-nonce','replacement-nonce']);assert.equal(state.binding!.accountId,'account-002');
+    state.detection={...state.detection!,requestId:'expired-nonce',checkedAt:Date.now()-120_001,account:{...state.binding!,accountId:'account-003'}};
+    await ui.reload();assert.match(root.textContent,/检测结果已过期/);assert.equal(btn('确认更换绑定账号'),undefined);assert.equal(btn('确认并绑定此账号'),undefined);
+    assert.deepEqual(confirmed,['fresh-nonce','replacement-nonce']);assert.equal(state.binding!.accountId,'account-002');
     btn('检查更新').click();await tick();assert.equal(updateCalls,1);assert.match(root.textContent,/无需卸载重装/);
   } finally {ui.destroy();dom.window.close();if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else Reflect.deleteProperty(globalThis,'document');}
 });
 
-test('account setup exposes browser pairing before login and refreshes when the extension pairs', async()=>{
+test('account setup copies one raw connection code, starts the connection once and keeps technical details collapsed', async()=>{
   const dom=new JSDOM('<div id="app"></div>',{url:'http://localhost'});
   const oldDocument=Object.getOwnPropertyDescriptor(globalThis,'document');
+  const oldNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  const copied:string[]=[];
+  const connectionCode='A'.repeat(43);
   Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
+  Object.defineProperty(globalThis,'navigator',{value:{clipboard:{writeText:async(text:string)=>{copied.push(text);}}},configurable:true});
   let running=false,paired=false,connectCalls=0,loginCalls=0,detectionCalls=0;
   let onChange=()=>{};
   const host:PublisherHost={settings:{...DEFAULT_SETTINGS,configured:true},
     accountState:()=>({binding:null,detection:null,connected:running,paired}),requestAccountDetection:async()=>{detectionCalls++;},bindAccount:async()=>{},unbindAccount:async()=>{},
     list:async()=>[],save:async p=>p,create:async()=>{throw new Error('unused');},inspect:async()=>{throw new Error('unused');},prepare:async()=>{},records:()=>[],cancel:async()=>{},acknowledge:()=>{},mediaUrl:()=>'',searchImages:()=>[],openNote:()=>{},saveSettings:async()=>{},
-    connect:async()=>{connectCalls++;running=true;},disconnect:async()=>{},connection:()=>({running,paired,port:27123,token:'synthetic-pairing-code'}),subscribe:fn=>{onChange=fn;return()=>{};},notify:()=>{}};
-  const root=dom.window.document.getElementById('app');const ui=new PublisherUI(root,host,{version:'test',openLogin:()=>{loginCalls++;},checkForUpdates:async()=>{}});
+    connect:async()=>{connectCalls++;await Promise.resolve();running=true;},disconnect:async()=>{},connection:()=>({running,paired,port:27123,token:running?connectionCode:''}),subscribe:fn=>{onChange=fn;return()=>{};},notify:()=>{}};
+  const root=dom.window.document.getElementById('app');const ui=new PublisherUI(root,host,{version:'test',vaultName:'独立合成测试库',openLogin:()=>{loginCalls++;},checkForUpdates:async()=>{}});
   const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
   const btn=(label:string)=>[...root.querySelectorAll('button')].find((b:any)=>b.textContent===label) as HTMLButtonElement;
   try{
     await ui.mount();btn('平台与账号').click();
-    assert.equal(root.querySelector('.sp-account-connection').open,true);
-    assert.ok(root.querySelector('.sp-login-steps').compareDocumentPosition(root.querySelector('.sp-account-connection')) & dom.window.Node.DOCUMENT_POSITION_PRECEDING);
-    assert.match(root.textContent,/网页已登录.*连接浏览器扩展/);
-    assert.match(root.textContent,/本地连接未开启/);
-    assert.equal(btn('检测登录状态').disabled,true);
-    root.querySelector('.sp-account-summary button').click();await tick();
+    assert.match(root.textContent,/当前知识库：独立合成测试库/);
+    assert.match(root.textContent,/复制连接码，粘贴到浏览器扩展即可连接/);
+    assert.equal(root.querySelector('.sp-account-connection'),null);
+    assert.equal(root.querySelector('.sp-account-help').open,false);
+    assert.equal(btn('检测登录状态'),undefined);
+    assert.equal(btn('打开小红书登录页'),undefined);
+    btn('复制连接码').click();await tick();
     assert.equal(connectCalls,1);assert.equal(loginCalls,0);assert.equal(detectionCalls,0);
-    assert.match(root.textContent,/等待浏览器扩展配对/);
-    assert.equal(root.querySelector('[aria-label="账号检测配对码"]').value,'synthetic-pairing-code');
-    assert.equal(root.querySelector('.sp-account-connection').open,true);
-    assert.equal(btn('检测登录状态').disabled,true);
-    btn('查看配对步骤').click();assert.equal(root.querySelector('.sp-account-connection').open,true);
+    assert.deepEqual(copied,[connectionCode]);assert.equal(copied[0].length,43);
+    assert.match(root.textContent,/等待浏览器连接/);
+    const code=root.querySelector('[aria-label="连接码"]');
+    assert.equal(code.value,connectionCode);assert.equal(code.type,'password');assert.equal(code.readOnly,true);
+    assert.equal(root.querySelector('.sp-account-connection').open,false);
+    assert.equal(btn('检测登录状态'),undefined);
+    btn('复制连接码').click();await tick();
+    assert.equal(connectCalls,1);assert.deepEqual(copied,[connectionCode,connectionCode]);
+    assert.equal(root.querySelector('.sp-account-connection').open,false);
     paired=true;onChange();await new Promise(resolve=>setTimeout(resolve,220));
     assert.equal(btn('检测登录状态').disabled,false);assert.equal(root.querySelector('.sp-account-connection').open,false);
     assert.match(root.textContent,/尚未绑定账号/);
     btn('检测登录状态').click();await tick();assert.equal(detectionCalls,1);
     assert.equal(loginCalls,0);assert.equal(host.accountState().binding,null);
-  }finally{ui.destroy();dom.window.close();if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else Reflect.deleteProperty(globalThis,'document');}
+  }finally{ui.destroy();dom.window.close();if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else Reflect.deleteProperty(globalThis,'document');if(oldNavigator)Object.defineProperty(globalThis,'navigator',oldNavigator);else Reflect.deleteProperty(globalThis,'navigator');}
 });

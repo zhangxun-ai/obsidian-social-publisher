@@ -53,4 +53,4 @@ class DemoHost implements PublisherHost{
   notify(text:string){const toast=document.createElement('div');toast.className='demo-toast';toast.textContent=text;document.body.append(toast);setTimeout(()=>toast.remove(),4000);}
 }
 const host=new DemoHost();
-const ui=new PublisherUI(document.getElementById('app')!,host,{version:'0.1.4（合成预览）',openLogin:()=>host.notify('合成预览不执行登录，请在 Obsidian 中使用。'),checkForUpdates:async()=>host.notify('请在 Obsidian 中通过 BRAT 更新，本页为合成预览。')});void ui.mount();
+const ui=new PublisherUI(document.getElementById('app')!,host,{vaultName:'合成示例知识库',version:'0.1.5（合成预览）',openLogin:()=>host.notify('合成预览不执行登录，请在 Obsidian 中使用。'),checkForUpdates:async()=>host.notify('请在 Obsidian 中通过 BRAT 更新，本页为合成预览。')});void ui.mount();

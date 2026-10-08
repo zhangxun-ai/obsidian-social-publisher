@@ -400,6 +400,35 @@ test('recognized browser identity requires explicit fresh confirmation and persi
   assert.equal(restarted.accountState().connected, false);
 });
 
+test('pairing and extension redetection create fresh nonces without automatically binding the detected account', async (t) => {
+  const {service, plugin} = await fixture();
+  await service.unbindAccount();
+  const request = await paired(service);
+  t.after(() => service.dispose());
+  const {request: first} = await (await request('/account-request', {})).json();
+  assert.equal(first.platform, 'xiaohongshu');
+  assert.equal(service.accountState().detection?.status, 'waiting');
+  assert.ok(first.expiresAt > Date.now());
+  assert.equal((await request('/account-result', {requestId: first.requestId, status: 'recognized', accountId: 'synthetic-account', nickname: '合成测试账号'})).status, 200);
+  assert.equal(service.accountState().detection?.status, 'recognized');
+  assert.equal(service.accountState().binding, null);
+  assert.equal(plugin.data?.boundAccount, null);
+
+  assert.deepEqual(await (await request('/account-detect', {})).json(), {requested: true});
+  const {request: second} = await (await request('/account-request', {})).json();
+  assert.notEqual(second.requestId, first.requestId);
+  assert.equal(service.accountState().detection?.status, 'waiting');
+  await assert.rejects(service.bindAccount(first.requestId), /重新检测/);
+  assert.equal((await request('/account-result', {requestId: first.requestId, status: 'logged-out'})).status, 409);
+
+  assert.equal((await request('/pair', {})).status, 200);
+  const {request: third} = await (await request('/account-request', {})).json();
+  assert.notEqual(third.requestId, second.requestId);
+  assert.equal((await request('/account-result', {requestId: second.requestId, status: 'logged-out'})).status, 409);
+  assert.equal(service.accountState().binding, null);
+  assert.equal(plugin.data?.boundAccount, null);
+});
+
 test('new requests, expiration, unknown results and disconnection cannot bind an old detected identity', async (t) => {
   const {service} = await fixture();
   const request = await paired(service);
@@ -501,7 +530,7 @@ test('extension pairing and disconnect emit observable connection changes and in
   assert.equal(service.accountState().detection, null);
   assert.equal(service.accountState().paired, false);
   await paired(service);
-  assert.equal(service.accountState().detection, null);
+  assert.equal(service.accountState().detection?.status, 'waiting');
   assert.notEqual(service.accountState().detection?.requestId, oldNonce);
 });
 
@@ -521,4 +550,15 @@ test('a fresh matching DOM identity can claim after display detection expired, a
   assert.equal(saved.accountId, 'synthetic-account');
   assert.equal(saved.body, '解绑后仍可修改文案。');
   assert.ok((await service.inspect(item.path)).issues.some(issue => issue.code === 'account-not-bound'));
+});
+
+test('a port used by another vault gives actionable recovery and leaves the new vault disconnected', async t => {
+  const first = await fixture(); const second = await fixture();
+  t.after(async () => { await first.service.dispose(); await second.service.dispose(); });
+  await first.service.bridge.start(0);
+  second.service.settings.port = first.service.bridge.port!;
+  await assert.rejects(second.service.connect(), /其他知识库.*关闭.*当前知识库.*复制连接码/);
+  assert.equal(second.service.connection().running, false);
+  assert.equal(second.service.connection().token, '');
+  assert.equal(first.service.connection().running, true);
 });

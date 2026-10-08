@@ -1,9 +1,10 @@
 const byId = (id) => document.getElementById(id);
-const elements = Object.fromEntries(['port', 'token', 'connect', 'forget', 'jobs', 'summary', 'account-check', 'empty-check', 'fill', 'status', 'detect-account', 'account-status', 'official-tabs', 'refresh-tabs'].map((id) => [id, byId(id)]));
+const elements = Object.fromEntries(['port', 'token', 'connect', 'forget', 'jobs', 'summary', 'account-check', 'empty-check', 'fill', 'status', 'detect-account', 'account-status', 'official-tabs', 'refresh-tabs', 'connection-panel', 'connection-state', 'connection-options', 'connection-error', 'account-panel', 'target-picker', 'fill-panel', 'jobs-panel', 'jobs-empty', 'refresh-jobs', 'open-login'].map((id) => [id, byId(id)]));
 let connection = null;
 let jobs = [];
 let activeTaskId = null;
 let busy = false;
+let pairing = false;
 let checkingAccount = false;
 let lastAccountRequest = null;
 let accountPoll = null;
@@ -26,8 +27,19 @@ function update() {
   elements.fill.disabled = busy || !connection || !!activeTaskId || !selected?.accountId || !elements['account-check'].checked || !elements['empty-check'].checked;
   elements.connect.disabled = busy;
   elements['detect-account'].disabled = busy || !connection || checkingAccount;
-  elements.forget.disabled = busy;
+  elements.forget.disabled = busy || checkingAccount;
+  elements['official-tabs'].disabled = busy || checkingAccount || !!activeTaskId;
+  elements['refresh-tabs'].disabled = busy || checkingAccount || !!activeTaskId;
   elements.jobs.disabled = busy || !connection || !!activeTaskId || jobs.length === 0;
+  elements['connection-panel'].hidden = !!connection && !pairing;
+  elements.connect.textContent = pairing ? '正在连接…' : '连接并检测账号';
+  elements['connection-state'].textContent = pairing ? '正在连接…' : connection ? '已连接 Obsidian' : '未连接 Obsidian';
+  elements.forget.hidden = !connection;
+  elements['account-panel'].hidden = !connection || pairing;
+  elements['fill-panel'].hidden = !connection || (!jobs.length && !activeTaskId);
+  elements['jobs-panel'].hidden = !connection || pairing;
+  elements['jobs-empty'].hidden = !!jobs.length || !!activeTaskId;
+  elements['refresh-jobs'].disabled = busy || !connection || !!activeTaskId;
   elements.summary.textContent = activeTaskId
     ? '已有任务被领取。请先核实网页，再回 Obsidian 确认该篇已处理；不会自动重发。'
     : selected ? `账号：${selected.account || '未指定，请先回 Obsidian 补充'} · ${selected.imageCount} 张图片 · 首图为封面` : '';
@@ -35,15 +47,16 @@ function update() {
 
 async function request(path, body) {
   if (!connection) throw new Error('请先配对。');
-  const response = await timedFetch(`http://127.0.0.1:${connection.port}${path}`, {
+  try {
+    const response = await timedFetch(`http://127.0.0.1:${connection.port}${path}`, {
     // Chrome omits the Origin header on extension GETs. POST reads retain its genuine Origin.
     method: 'POST', mode: 'cors', cache: 'no-store',
     headers: { Authorization: `Bearer ${connection.token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body ?? {}),
   }, 15_000);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || '本地连接请求未完成，请回 Obsidian 检查连接。');
-  return data;
+    if (!response.ok) { const error = new Error('本地连接请求未完成。'); error.status = response.status; throw error; }
+    return await response.json();
+  } catch (error) { error.localRequest = true; throw error; }
 }
 
 
@@ -69,6 +82,8 @@ async function refreshOfficialTabs() {
   }
   if (tabs.length === 1) elements['official-tabs'].value = String(tabs[0].id);
   else if (tabs.some((tab) => String(tab.id) === previous)) elements['official-tabs'].value = previous;
+  elements['target-picker'].hidden = tabs.length === 1;
+  elements['refresh-tabs'].hidden = tabs.length === 1;
 }
 async function selectedOfficialTab() {
   const tabId = Number(elements['official-tabs'].value);
@@ -77,8 +92,9 @@ async function selectedOfficialTab() {
   return allowedCreatorPage(tab.url) ? tab : null;
 }
 elements['refresh-tabs'].addEventListener('click', async () => {
-  try { await refreshOfficialTabs(); } catch { message('无法读取官方标签页，请重新打开扩展工作台。'); }
+  try { await refreshOfficialTabs(); await respondToAccountRequest(true); } catch { message('无法读取页面列表，请重新打开扩展工作台。'); }
 });
+elements['official-tabs'].addEventListener('change', () => { void beginAccountDetection(); });
 
 async function respondToAccountRequest(manual = false) {
   if (!connection || busy || checkingAccount) return;
@@ -87,10 +103,11 @@ async function respondToAccountRequest(manual = false) {
   try {
     const { request: pending } = await request('/account-request');
     if (!pending) {
-      if (manual) elements['account-status'].textContent = '请保持此工作台打开，回 Obsidian「平台与账号」点击检测登录状态。';
+      if (manual) elements['account-status'].textContent = '请回 Obsidian 点击「检测登录状态」；更新插件后，连接时会自动检测。';
       return;
     }
-    if (pending.requestId === lastAccountRequest || pending.platform !== 'xiaohongshu' || pending.expiresAt <= Date.now()) return;
+    if (pending.requestId === lastAccountRequest || pending.platform !== 'xiaohongshu') return;
+    if (pending.expiresAt <= Date.now()) { elements['account-status'].textContent = '检测请求已过期，请点击「重新检测」。'; return; }
     const tab = await selectedOfficialTab();
     if (!tab) {
       elements['account-status'].textContent = '请先选择要检测的小红书官方标签页；当前检测请求仍在等待。';
@@ -104,10 +121,19 @@ async function respondToAccountRequest(manual = false) {
     await request('/account-result', body);
     lastAccountRequest = pending.requestId;
     elements['account-status'].textContent = result.status === 'recognized'
-      ? `已识别：${result.nickname}（${result.accountId}）。请回 Obsidian 核对并绑定。`
-      : result.status === 'logged-out' ? '当前官方页面尚未登录，请先手动登录。'
-      : '无法可靠识别当前账号。请确认官方后台已经登录并刷新页面，再回 Obsidian 重新发起检测；不会按昵称猜测。';
-  } catch { if (manual) elements['account-status'].textContent = '账号检测未完成，请检查本地连接和当前官方页面后重试。'; }
+      ? `已识别：${result.nickname}。回 Obsidian 确认绑定即可。`
+      : result.status === 'logged-out' ? '尚未登录。请打开小红书登录后，点击「重新检测」。'
+      : '未能识别账号。请确认选中的小红书页面已登录，再重新检测。';
+    elements['open-login'].hidden = result.status === 'recognized';
+  } catch (error) {
+    if (error.localRequest && (!error.status || [401, 403].includes(error.status))) {
+      if (accountPoll) clearInterval(accountPoll);
+      accountPoll = null; connection = null;
+      connectionError('连接已中断，请从 Obsidian 重新复制连接码。');
+    } else elements['account-status'].textContent = error.status === 409
+      ? '检测请求已更新或过期，请点击「重新检测」。'
+      : '页面无法读取，请刷新页面列表后重新检测。';
+  }
   finally { checkingAccount = false; update(); }
 }
 
@@ -115,10 +141,25 @@ function startAccountPolling() {
   if (accountPoll) clearInterval(accountPoll);
   // Runs only while this explicitly paired workspace stays open, never in the background.
   accountPoll = setInterval(() => { void respondToAccountRequest(); }, 2000);
-  void respondToAccountRequest();
+  void respondToAccountRequest(true);
 }
 
-elements['detect-account'].addEventListener('click', () => { void respondToAccountRequest(true); });
+async function beginAccountDetection() {
+  if (!connection || busy || checkingAccount) return;
+  busy = true; update();
+  elements['account-status'].textContent = '正在检测账号…';
+  elements['open-login'].hidden = false;
+  try {
+    await refreshOfficialTabs();
+    await request('/account-detect', {});
+  } catch (error) {
+    if (error.status !== 404) { elements['account-status'].textContent = '未能开始检测，请检查 Obsidian 连接后重试。'; return; }
+    // Older plugins still support requests initiated in Obsidian.
+    elements['account-status'].textContent = '请回 Obsidian 点击「检测登录状态」，或更新插件以自动检测。';
+  } finally { busy = false; update(); }
+  await respondToAccountRequest(true);
+}
+elements['detect-account'].addEventListener('click', () => { void beginAccountDetection(); });
 
 async function refresh() {
   const data = await request('/jobs');
@@ -133,27 +174,58 @@ async function refresh() {
 
 elements.connect.addEventListener('click', async () => {
   const port = Number(elements.port.value);
-  const token = elements.token.value.trim();
-  if (!Number.isInteger(port) || port < 1024 || port > 65535 || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
-    message('请使用 Obsidian 中显示的端口和本次配对码。');
+  const token = elements.token.value.replace(/[\t\n\r ]/g, '');
+  clearConnectionError();
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    elements['connection-options'].open = true;
+    connectionError('连接端口不正确，请填写 Obsidian 中显示的端口。', elements.port);
+    return;
+  }
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    connectionError(token ? '连接码不完整或格式不正确。请在 Obsidian 点击「复制连接码」，重新粘贴。' : '请先粘贴从 Obsidian 复制的连接码。');
     return;
   }
   busy = true;
+  pairing = true;
   connection = { port, token };
   update();
   try {
     await request('/pair', {});
-    await chrome.storage.session.set({ ospConnection: connection });
-    await refresh();
-    await refreshOfficialTabs();
-    startAccountPolling();
-    message(activeTaskId ? '本次连接中有任务需要先核实。' : '已配对；请手动选择一篇作品。');
-  } catch {
+    pairing = false;
+    elements['connection-options'].open = false;
+    update();
+    // Pairing remains successful even if reading tasks or tab metadata fails.
+    await chrome.storage.session.set({ ospConnection: connection }).catch(() => {});
+    message('');
+    await refreshOfficialTabs().catch(() => { elements['account-status'].textContent = '请刷新页面列表，选择已登录的小红书页面。'; });
+    await refresh().catch(() => { message('已连接 Obsidian，读取作品失败。请点击「刷新待填写作品」。'); });
+  } catch (error) {
     connection = null;
     jobs = [];
-    elements.jobs.replaceChildren(new Option('请重新配对', ''));
-    message('连接未完成。请核对 Obsidian 本地连接已开启、配对码有效且未绑定其他扩展。');
-  } finally { busy = false; update(); }
+    connectionError(error.status === 401 || error.status === 403
+      ? '连接码已失效，或已连接其他浏览器。请在 Obsidian 断开连接后重新复制连接码。'
+      : '无法连接 Obsidian。请确认插件已开启，再复制最新的连接码。');
+  } finally { busy = false; pairing = false; update(); }
+  if (!connection) return;
+  startAccountPolling();
+});
+
+function clearConnectionError() {
+  elements['connection-error'].hidden = true;
+  for (const element of [elements.token, elements.port]) element.removeAttribute('aria-invalid');
+}
+function connectionError(text, field = elements.token) {
+  elements['connection-error'].textContent = text;
+  elements['connection-error'].hidden = false;
+  field.setAttribute('aria-invalid', 'true');
+  update(); field.focus();
+}
+for (const field of [elements.token, elements.port]) field.addEventListener('input', clearConnectionError);
+elements['refresh-jobs'].addEventListener('click', async () => {
+  if (!connection || busy || activeTaskId) return;
+  busy = true; update();
+  try { await refresh(); message(''); } catch { message('作品未能读取，请确认 Obsidian 连接仍开启后重试。'); }
+  finally { busy = false; update(); }
 });
 
 elements.forget.addEventListener('click', async () => {
@@ -165,8 +237,8 @@ elements.forget.addEventListener('click', async () => {
   jobs = [];
   activeTaskId = null;
   elements.token.value = '';
-  elements.jobs.replaceChildren(new Option('请先配对', ''));
-  message('已清除浏览器会话中的配对码；Obsidian 中已领取的任务仍需核实。');
+  elements.jobs.replaceChildren(new Option('请先连接', ''));
+  clearConnectionError(); message('');
   update();
 });
 
@@ -237,7 +309,8 @@ elements.fill.addEventListener('click', async () => {
 // Restore credentials only. Reading jobs or filling a page always requires a click.
 chrome.storage.session.get('ospConnection').then((data) => {
   const saved = data.ospConnection;
-  if (saved) { elements.port.value = saved.port; elements.token.value = saved.token; message('已恢复本浏览器会话的配对信息，请点击配对读取当前作品。'); }
+  if (saved) { elements.port.value = saved.port; elements.token.value = saved.token; message('连接码已恢复，点击「连接并检测账号」继续。'); }
 });
 
 void refreshOfficialTabs().catch(() => {});
+update();

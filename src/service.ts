@@ -34,6 +34,7 @@ export class PublisherService implements PublisherHost {
         if (!this.bridge.running || !this.bridge.pairedExtensionId) this.clearDetection();
         this.emit();
       },
+      requestAccountDetection: () => this.requestAccountDetection(),
       accountRequest: () => this.accountRequest(),
       reportAccount: report => this.reportAccount(report),
       claimJob: async (id, accountId) => {
@@ -357,7 +358,14 @@ export class PublisherService implements PublisherHost {
     if (this.bridge.running && settings.port !== this.settings.port) await this.disconnect();
     this.settings = {...settings, roots, configured: true}; await this.persist(); this.emit();
   }
-  async connect(): Promise<void> { await this.bridge.start(this.settings.port); this.emit(); }
+  async connect(): Promise<void> {
+    try { await this.bridge.start(this.settings.port); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') throw new Error('连接端口已被占用。请先在其他知识库关闭 Social Publisher 连接，再回当前知识库复制连接码。');
+      throw new Error('无法开启本地连接，请检查「设置」中的连接端口后重试。');
+    }
+    this.emit();
+  }
   async disconnect(): Promise<void> {
     await this.bridge.stop();
     this.clearDetection();

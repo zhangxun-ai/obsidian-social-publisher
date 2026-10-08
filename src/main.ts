@@ -20,6 +20,7 @@ export default class SocialPublisherPlugin extends Plugin {
     await this.service.load();
     const runtime: PublisherRuntime = {
       version: this.manifest.version,
+      vaultName: this.app.vault.getName(),
       openLogin: () => { void (require('electron') as {shell: {openExternal(url: string): Promise<void>}}).shell.openExternal('https://creator.xiaohongshu.com/').catch(() => new Notice('打开失败，请在浏览器访问 creator.xiaohongshu.com。')); },
       checkForUpdates: async () => {
         // BRAT's public command opens its single-plugin chooser; never update unrelated plugins.

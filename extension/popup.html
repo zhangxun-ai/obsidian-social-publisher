@@ -6,23 +6,38 @@
   <title>Obsidian 辅助填写</title>
   <link rel="stylesheet" href="popup.css">
 </head>
-<body>
-  <h1>小红书账号与辅助填写</h1>
-  <p class="notice">实验适配 · 尚未通过真实平台验收。只填写用户已打开的官方编辑器，图片上传结果、账号、话题关联和原创声明均需你核实。</p>
-  <label>本地连接端口<input id="port" type="number" value="27123" min="1024" max="65535"></label>
-  <label>Obsidian 本次配对码<input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="先在 Obsidian 插件设置中开启本地连接"></label>
-  <div class="row"><button id="connect">配对并读取待填写作品</button><button id="forget" class="secondary">清除配对</button></div>
-  <label>操作的小红书官方标签页<select id="official-tabs"><option value="">请先打开官方后台</option></select></label>
-  <button id="refresh-tabs" class="secondary">刷新官方标签页</button>
-  <button id="detect-account" class="secondary" disabled>检测当前小红书账号</button>
-  <p id="account-status" class="muted" role="status">请先配对并选择官方标签页，再回 Obsidian「平台与账号」发起检测。保持此工作台标签页打开即可回应检测。</p>
-  <label>本次作品<select id="jobs" disabled><option value="">请先配对</option></select></label>
+<body><main>
+  <header><h1>小红书</h1><span id="connection-state">未连接 Obsidian</span></header>
+  <p id="status" role="status" aria-live="polite"></p>
+  <section id="connection-panel">
+  <h2>连接 Obsidian</h2>
+  <p class="muted">在 Obsidian「平台与账号」点击“复制连接码”，粘贴到这里。</p>
+  <label for="token">连接码</label><input id="token" type="password" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" spellcheck="false" aria-describedby="connection-error" placeholder="粘贴连接码">
+  <p id="connection-error" class="error" role="alert" hidden></p>
+  <button id="connect">连接并检测账号</button>
+  </section>
+  <details id="connection-options"><summary>连接设置</summary>
+  <label for="port">连接端口</label><input id="port" type="number" value="27123" min="1024" max="65535">
+  <p class="muted">通常无需修改；应与 Obsidian 中显示的端口一致。</p>
+  <button id="forget" class="secondary" hidden>断开连接</button>
+  </details>
+  <section id="account-panel" hidden>
+  <h2>小红书账号</h2>
+  <div id="target-picker"><label for="official-tabs">选择已登录的页面</label><select id="official-tabs"><option value="">请先打开官方后台</option></select></div>
+  <p id="account-status" role="status" aria-live="polite">正在检测账号…</p>
+  <div class="row"><button id="detect-account" class="secondary" disabled>重新检测</button><button id="refresh-tabs" class="text-button">刷新页面列表</button><a id="open-login" href="https://creator.xiaohongshu.com/" target="_blank" rel="noopener">打开小红书</a></div>
+  </section>
+  <section id="fill-panel" hidden>
+  <h2>填写作品</h2>
+  <label for="jobs">选择作品</label><select id="jobs" disabled><option value="">请先连接</option></select>
   <p id="summary" class="muted"></p>
   <label class="check"><input id="account-check" type="checkbox">我已核对当前网页账号与所选作品的账号一致</label>
   <label class="check"><input id="empty-check" type="checkbox">我已打开新的空白图文编辑器，本次只填写这一篇</label>
-  <button id="fill" disabled>开始填写这一篇</button>
-  <p class="muted">填写期间保持此工作台标签页打开。完成或中断后不会自动重试；先核实网页，再回 Obsidian 确认本篇已处理，才可填写下一篇。不会点击发布、草稿或原创控件。</p>
-  <p id="status" role="status" aria-live="polite">尚未连接。</p>
+  <button id="fill" disabled>填写到小红书</button>
+  <p class="muted">保持此工作台打开。填写后请到小红书核实，再自行发布。</p>
+  </section>
+  <section id="jobs-panel" hidden><p id="jobs-empty" class="muted">绑定账号后，在 Obsidian 创建填写任务。</p><button id="refresh-jobs" class="text-button">刷新待填写作品</button></section>
+  <footer><details><summary>关于辅助填写</summary><p>实验功能，仅填写已确认的图文。图片、话题和原创声明需在小红书核实；不会点击发布或保存草稿。操作中断后不会自动重试，请先核实网页，再回 Obsidian 确认该篇已处理。</p><p>账号密码留在浏览器中，连接码仅保存在当前浏览器会话。</p></details></footer>
   <script src="popup.js"></script>
-</body>
+</main></body>
 </html>

@@ -75,7 +75,7 @@ for (const changed of ['abcdef0123456789abcdef01', 'unknown']) {
   });
 }
 
-async function workspace(t: any, tabs: any[], actualAccountId = '0123456789abcdef01234567') {
+async function workspace(t: any, tabs: any[], actualAccountId = '0123456789abcdef01234567', options: { autoConnect?: boolean; response?: (path: string, fallback: any) => any } = {}) {
   const html = readFileSync('extension/popup.html', 'utf8');
   const dom = new JSDOM(html, { url: 'https://extension.test/popup.html', runScripts: 'outside-only' });
   t.after(() => dom.window.close());
@@ -95,30 +95,117 @@ async function workspace(t: any, tabs: any[], actualAccountId = '0123456789abcde
     } },
   };
   window.AbortController = AbortController;
-  window.fetch = async (url: string, options: any) => {
+  let nonce = 0;
+  window.fetch = async (url: string, fetchOptions: any) => {
     const path = new URL(url).pathname;
-    calls.push({ path, body: JSON.parse(options.body) });
+    calls.push({ path, body: JSON.parse(fetchOptions.body) });
+    if (path === '/pair' || path === '/account-detect') nonce++;
     const result = path === '/jobs' ? { jobs: [{ id: 'task-id', title: 'title', account: '合成账号', accountId: '0123456789abcdef01234567', imageCount: 1 }], activeTaskId: null }
-      : path === '/account-request' ? { request: { requestId: 'nonce', platform: 'xiaohongshu', expiresAt: Date.now() + 120_000 } }
+      : path === '/account-request' ? { request: { requestId: `nonce-${nonce}`, platform: 'xiaohongshu', expiresAt: Date.now() + 120_000 } }
       : {};
-    return { ok: true, json: async () => result };
+    return options.response?.(path, result) ?? { ok: true, json: async () => result };
   };
   window.eval(readFileSync('extension/popup.js', 'utf8'));
   const tick = async () => { for (let index = 0; index < 5; index++) await new Promise(resolve => setTimeout(resolve, 0)); };
   await tick();
-  window.document.getElementById('token').value = 'a'.repeat(43);
-  window.document.getElementById('connect').click();
+  if (options.autoConnect !== false) {
+    window.document.getElementById('token').value = 'a'.repeat(43);
+    window.document.getElementById('connect').click();
+  }
   await tick();
   return { window, calls, queries, tick };
 }
 
 test('persistent workspace detects a selected official tab while extension page has focus', async t => {
   const p = await workspace(t, [{ id: 7, url: 'https://creator.xiaohongshu.com/publish/publish', title: '官方后台' }]);
-  p.window.document.getElementById('detect-account').click(); await p.tick();
   assert.deepEqual(JSON.parse(JSON.stringify(p.queries[0])), { url: 'https://creator.xiaohongshu.com/*', currentWindow: true });
   const report = p.calls.find(call => call.path === '/account-result');
   assert.equal(report?.body.accountId, '0123456789abcdef01234567');
   assert.equal(report?.body.status, 'recognized');
+  assert.match(p.window.document.getElementById('account-status').textContent, /确认绑定/);
+  assert.equal(p.window.document.getElementById('target-picker').hidden, true);
+  p.window.document.getElementById('detect-account').click(); await p.tick();
+  assert.equal(p.calls.filter(call => call.path === '/account-result').length, 2);
+  assert.notEqual(p.calls.filter(call => call.path === '/account-result')[0].body.requestId, p.calls.filter(call => call.path === '/account-result')[1].body.requestId);
+});
+
+test('invalid connection code fails inline before requests, then accepts the exact copied code with whitespace', async t => {
+  const p = await workspace(t, [], undefined, { autoConnect: false });
+  const d = p.window.document;
+  assert.equal(d.getElementById('account-panel').hidden, true);
+  assert.equal(d.getElementById('fill-panel').hidden, true);
+  assert.equal(d.getElementById('connection-options').open, false);
+  d.getElementById('token').value = '••••••••';
+  d.getElementById('connect').click(); await p.tick();
+  assert.equal(p.calls.length, 0);
+  assert.equal(d.getElementById('connection-error').hidden, false);
+  assert.match(d.getElementById('connection-error').textContent, /复制连接码/);
+  assert.equal(d.activeElement.id, 'token');
+  assert.equal(d.getElementById('token').getAttribute('aria-invalid'), 'true');
+  d.getElementById('token').value = ` ${'a'.repeat(20)}\n${'a'.repeat(23)} `;
+  d.getElementById('connect').click(); await p.tick();
+  assert.equal(p.calls.filter(call => call.path === '/pair').length, 1);
+  assert.equal(d.getElementById('connection-error').hidden, true);
+  assert.match(d.getElementById('connection-state').textContent, /已连接/);
+});
+
+test('invalid custom port opens its advanced field without attempting connection', async t => {
+  const p = await workspace(t, [], undefined, { autoConnect: false });
+  const d = p.window.document;
+  d.getElementById('port').value = '80';
+  d.getElementById('connect').click(); await p.tick();
+  assert.equal(p.calls.length, 0);
+  assert.equal(d.getElementById('connection-options').open, true);
+  assert.equal(d.activeElement.id, 'port');
+  assert.match(d.getElementById('connection-error').textContent, /端口/);
+});
+
+test('tasks read failure preserves a successful connection and still detects the account', async t => {
+  const p = await workspace(t, [{ id: 7, url: 'https://creator.xiaohongshu.com/' }], undefined, {
+    response: path => { if (path === '/jobs') throw new Error('private diagnostic'); },
+  });
+  const d = p.window.document;
+  assert.match(d.getElementById('connection-state').textContent, /已连接/);
+  assert.equal(d.getElementById('fill-panel').hidden, true);
+  assert.match(d.getElementById('status').textContent, /读取作品失败/);
+  assert.equal(p.calls.filter(call => call.path === '/account-result').length, 1);
+  assert.doesNotMatch(d.body.textContent, /private diagnostic/);
+});
+
+test('empty task list hides publishing controls until explicit refresh finds a prepared task', async t => {
+  let empty = true;
+  const p = await workspace(t, [], undefined, { response: (path, fallback) => path === '/jobs' && empty ? { ok: true, json: async () => ({ jobs: [], activeTaskId: null }) } : undefined });
+  const d = p.window.document;
+  assert.equal(d.getElementById('fill-panel').hidden, true);
+  assert.equal(d.getElementById('jobs-empty').hidden, false);
+  empty = false;
+  d.getElementById('refresh-jobs').click(); await p.tick();
+  assert.equal(d.getElementById('fill-panel').hidden, false);
+  assert.equal(d.getElementById('fill').disabled, true);
+});
+
+test('rejected pairing provides local recovery and does not expose response details', async t => {
+  const p = await workspace(t, [], undefined, { response: path => path === '/pair' ? { ok: false, status: 401, json: async () => ({ error: 'private diagnostic' }) } : undefined });
+  const d = p.window.document;
+  assert.match(d.getElementById('connection-error').textContent, /已失效/);
+  assert.equal(d.getElementById('connection-panel').hidden, false);
+  assert.equal(d.getElementById('account-panel').hidden, true);
+  assert.equal(d.activeElement.id, 'token');
+  assert.doesNotMatch(d.body.textContent, /private diagnostic/);
+});
+
+test('expired detection response keeps pairing and offers retry', async t => {
+  const p = await workspace(t, [{ id: 7, url: 'https://creator.xiaohongshu.com/' }], undefined, { response: path => path === '/account-result' ? { ok: false, status: 409 } : undefined });
+  assert.match(p.window.document.getElementById('connection-state').textContent, /已连接/);
+  assert.match(p.window.document.getElementById('account-status').textContent, /重新检测/);
+});
+
+test('older plugin falls back to initiating detection in Obsidian', async t => {
+  const p = await workspace(t, [], undefined, { response: path => path === '/account-request' ? { ok: true, json: async () => ({ request: null }) } : path === '/account-detect' ? { ok: false, status: 404 } : undefined });
+  assert.match(p.window.document.getElementById('account-status').textContent, /Obsidian.*检测登录状态/);
+  p.window.document.getElementById('detect-account').click(); await p.tick();
+  assert.match(p.window.document.getElementById('connection-state').textContent, /已连接/);
+  assert.equal(p.calls.filter(call => call.path === '/account-result').length, 0);
 });
 
 test('multiple official tabs require selection and leave detection nonce pending', async t => {

@@ -185,34 +185,26 @@
 }
 @media (prefers-reduced-motion: no-preference) { .sp-button { transition: background-color .12s ease-out; } }
 
-.sp-account-summary { display: grid; grid-template-columns: minmax(100px, .65fr) minmax(180px, 1.5fr) minmax(140px, 1fr) auto; align-items: center; gap: 20px; border: 1px solid var(--sp-line); border-radius: 6px; padding: 18px 20px; margin-bottom: 20px; }
-.sp-account-summary > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
-.sp-account-summary strong { font-weight: 500; }
-.sp-account-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; }
-.sp-login-steps { margin: 0 0 18px; padding-left: 24px; line-height: 2.15; }
-.sp-login-steps li::marker { color: var(--sp-accent); font-weight: 600; }
-.sp-account-actions { margin: 18px 0; }
-.sp-account-feedback { padding: 15px; border: 1px solid var(--sp-line); border-radius: 5px; margin-bottom: 15px; overflow-wrap: anywhere; }
-.sp-account-feedback p + p, .sp-account-feedback p + button { margin-top: 12px; }
-.sp-account-feedback strong + p { margin-top: 5px; }
-.sp-account-connection { border-bottom: 1px solid var(--sp-line); margin-bottom: 18px; padding-bottom: 16px; }
-.sp-account-connection summary { cursor: pointer; font-weight: 500; }
-.sp-account-connection > p { margin: 12px 0 18px; }
+.sp-account-panel { max-width: 680px; }
+.sp-account-summary { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 20px; }
+.sp-account-summary h2 { margin: 0; }
+.sp-account-name { font-size: 18px; overflow-wrap: anywhere; }
+.sp-account-feedback { padding: 8px 0 18px; overflow-wrap: anywhere; }
+.sp-account-feedback p + button, .sp-account-feedback strong + p { margin-top: 12px; }
+.sp-account-connection, .sp-account-help { border-top: 1px solid var(--sp-line); margin-top: 16px; padding-top: 14px; }
+.sp-account-connection summary, .sp-account-help summary { cursor: pointer; color: var(--sp-muted); }
+.sp-account-connection > *, .sp-account-help > p, .sp-account-help > button { margin-top: 12px; }
+.sp-account-connection summary { margin-top: 0; }
 .sp-account-connection .sp-field { margin-bottom: 14px; }
 .sp-update-row { display: flex; align-items: center; gap: 24px; border-top: 1px solid var(--sp-line); padding: 20px 0; margin-top: 24px; }
 .sp-update-row h2 { margin-bottom: 6px; }
 .sp-update-row p + p { margin-top: 4px; }
 @container (max-width: 780px) {
   .sp-top { flex-wrap: wrap; gap: 0 20px; }
-  .sp-account-grid { grid-template-columns: 1fr; }
-  .sp-account-summary { grid-template-columns: 1fr 1.5fr; }
   .sp-top .sp-nav .sp-button { padding-left: 8px; padding-right: 8px; }
 }
 @container (max-width: 480px) {
   .sp-top { padding-top: 12px; }
   .sp-nav { width: 100%; justify-content: space-between; }
-  .sp-account-summary { gap: 16px; padding: 16px; }
-  .sp-account-summary > div:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
-  .sp-account-summary > .sp-button { grid-column: 1 / -1; white-space: nowrap; }
   .sp-update-row { flex-wrap: wrap; gap: 14px; }
 }

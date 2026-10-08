@@ -79,16 +79,16 @@ try {
     if(opened.count!==1)throw new Error('Extension action did not reuse one workspace');
     const workspace=context.pages().find(p=>p.url()===opened.url)||await context.waitForEvent('page');
     await workspace.waitForLoadState();await workspace.locator('body').ariaSnapshot();
+    await workspace.locator('#connection-options summary').click();
     await workspace.locator('#port').fill(${JSON.stringify(String(port))});
     await workspace.locator('#token').fill(${JSON.stringify(secret)});
     await workspace.locator('#connect').click();
-    await workspace.locator('#status').filter({hasText:'已配对'}).waitFor();
+    await workspace.locator('#connection-state').filter({hasText:'已连接 Obsidian'}).waitFor();
     return {singlePersistentTab:opened.count===1,officialTabs:await workspace.locator('#official-tabs option').count(),paired:true};
   }`);
   console.log("MV3 workspace reuse and genuine extension pairing passed.");
   assert.equal(service.accountState().paired,true);
   results.realExtensionOrigin = service.bridge.pairedExtensionId !== null;
-  await service.requestAccountDetection();
   await run(`async(page)=>{const workspace=page.context().pages().find(p=>p.url().endsWith('/popup.html'));await workspace.locator('#account-status').filter({hasText:'已识别'}).waitFor({timeout:10000});return {recognized:true};}`);
   await waitFor(()=>service.accountState().detection?.status==='recognized');
   assert.equal(service.accountState().binding,null);
@@ -105,7 +105,7 @@ try {
   const taskId=service.records()[0].id;
   results.fill = await run(`async(page)=>{
     const context=page.context();const workspace=context.pages().find(p=>p.url().endsWith('/popup.html'));
-    await workspace.locator('#connect').click();await workspace.locator('#jobs option[value=${JSON.stringify(taskId)}]').waitFor({state:'attached'});
+    await workspace.locator('#refresh-jobs').click();await workspace.locator('#jobs option[value=${JSON.stringify(taskId)}]').waitFor({state:'attached'});
     await workspace.locator('body').ariaSnapshot();await workspace.locator('#jobs').selectOption(${JSON.stringify(taskId)});
     await workspace.locator('#account-check').check();await workspace.locator('#empty-check').check();await workspace.locator('#fill').click();
     await workspace.waitForFunction(()=>!document.getElementById('connect').disabled,{}, {timeout:30000});

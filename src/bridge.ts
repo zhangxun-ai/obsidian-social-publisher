@@ -38,6 +38,7 @@ export interface BridgeProvider {
   listJobs(): BridgeJobSummary[] | Promise<BridgeJobSummary[]>;
   claimJob(id: string, accountId: string): BridgeJob | Promise<BridgeJob>;
   validateAccount(id: string, accountId: string): void | Promise<void>;
+  requestAccountDetection?(): void | Promise<void>;
   accountRequest?(): AccountDetectionRequest | null;
   reportAccount?(report: AccountDetectionReport): void;
   connectionChanged?(): void;
@@ -230,7 +231,7 @@ export class LocalBridge {
       const url = new URL(request.url, `http://127.0.0.1:${this.listenPort}`);
       if (url.search) throw new RequestError(400, '接口不接受查询参数。');
       const path = url.pathname;
-      const known = ['/pair', '/status', '/jobs', '/claim', '/result', '/account-request', '/account-result'].includes(path) || /^\/media\/[^/]+\/\d+$/.test(path);
+      const known = ['/pair', '/status', '/jobs', '/claim', '/result', '/account-detect', '/account-request', '/account-result'].includes(path) || /^\/media\/[^/]+\/\d+$/.test(path);
       if (!known) throw new RequestError(404, '没有此接口。');
       if (request.method === 'OPTIONS') {
         const method = request.headers['access-control-request-method'];
@@ -246,7 +247,7 @@ export class LocalBridge {
       this.authorize(request, origin, path !== '/pair');
       // Chrome MV3 omits Origin on extension GETs. POST reads preserve its browser-generated
       // extension Origin, allowing the same strict source checks without a claimed-origin header.
-      if (request.method === 'POST' && (path === '/status' || path === '/jobs' || path === '/account-request' || path.startsWith('/media/'))) {
+      if (request.method === 'POST' && (path === '/status' || path === '/jobs' || path === '/account-detect' || path === '/account-request' || path.startsWith('/media/'))) {
         const body = await this.body(request);
         if (Object.keys(body).length) throw new RequestError(400, '读取请求不接受其他数据。');
         if (session !== this.session) return;
@@ -258,9 +259,16 @@ export class LocalBridge {
         this.authorize(request, origin, false);
         this.extensionId = EXTENSION_ORIGIN.exec(origin)![1];
         this.provider.connectionChanged?.();
+        await this.provider.requestAccountDetection?.();
+        if (session !== this.session) return;
         this.json(response, 200, { paired: true });
       } else if (path === '/status' && ['GET', 'POST'].includes(request.method ?? '')) {
         this.json(response, 200, { paired: true, activeTaskId: this.currentTaskId, awaitingResult: !!this.currentTaskId && !this.resultRecorded });
+      } else if (path === '/account-detect' && request.method === 'POST') {
+        if (!this.provider.requestAccountDetection) throw new RequestError(409, '当前插件不支持账号检测，请更新插件。');
+        await this.provider.requestAccountDetection();
+        if (session !== this.session) return;
+        this.json(response, 200, {requested: true});
       } else if (path === '/account-request' && request.method === 'POST') {
         const detectionRequest = this.provider.accountRequest?.() ?? null;
         this.json(response, 200, {request: detectionRequest});
