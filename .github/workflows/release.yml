@@ -1,0 +1,32 @@
+name: Release
+on:
+  push:
+    tags: ['[0-9]*']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.21.0'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Publish install assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            dist/social-publisher/main.js \
+            dist/social-publisher/manifest.json \
+            dist/social-publisher/styles.css \
+            --verify-tag --title "$RELEASE_TAG" \
+            --notes-file "docs/releases/$RELEASE_TAG.md"

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.dev-vault*/
+output/
+.impeccable/review/
+.playwright-cli/
+.planning/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+.DS_Store

@@ -1,0 +1,427 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-08T01:25:33.696091Z",
+  "title": "Design System: Obsidian Social Publisher",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "宿主强调色",
+        "tonalRamp": [
+          "oklch(15.00% 0.18915 291.02)",
+          "oklch(26.43% 0.18915 291.02)",
+          "oklch(37.86% 0.18915 291.02)",
+          "oklch(49.29% 0.18915 291.02)",
+          "oklch(60.71% 0.18915 291.02)",
+          "oklch(72.14% 0.18915 291.02)",
+          "oklch(83.57% 0.18915 291.02)",
+          "oklch(95.00% 0.18915 291.02)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "工作底色",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 0.00)",
+          "oklch(26.43% 0.00000 0.00)",
+          "oklch(37.86% 0.00000 0.00)",
+          "oklch(49.29% 0.00000 0.00)",
+          "oklch(60.71% 0.00000 0.00)",
+          "oklch(72.14% 0.00000 0.00)",
+          "oklch(83.57% 0.00000 0.00)",
+          "oklch(95.00% 0.00000 0.00)"
+        ]
+      },
+      "background-subtle": {
+        "role": "neutral",
+        "displayName": "次级底色",
+        "tonalRamp": [
+          "oklch(15.00% 0.00397 286.33)",
+          "oklch(26.43% 0.00397 286.33)",
+          "oklch(37.86% 0.00397 286.33)",
+          "oklch(49.29% 0.00397 286.33)",
+          "oklch(60.71% 0.00397 286.33)",
+          "oklch(72.14% 0.00397 286.33)",
+          "oklch(83.57% 0.00397 286.33)",
+          "oklch(95.00% 0.00397 286.33)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "正文色",
+        "tonalRamp": [
+          "oklch(15.00% 0.01495 285.29)",
+          "oklch(26.43% 0.01495 285.29)",
+          "oklch(37.86% 0.01495 285.29)",
+          "oklch(49.29% 0.01495 285.29)",
+          "oklch(60.71% 0.01495 285.29)",
+          "oklch(72.14% 0.01495 285.29)",
+          "oklch(83.57% 0.01495 285.29)",
+          "oklch(95.00% 0.01495 285.29)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "辅助文字色",
+        "tonalRamp": [
+          "oklch(15.00% 0.02199 285.59)",
+          "oklch(26.43% 0.02199 285.59)",
+          "oklch(37.86% 0.02199 285.59)",
+          "oklch(49.29% 0.02199 285.59)",
+          "oklch(60.71% 0.02199 285.59)",
+          "oklch(72.14% 0.02199 285.59)",
+          "oklch(83.57% 0.02199 285.59)",
+          "oklch(95.00% 0.02199 285.59)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "分隔线色",
+        "tonalRamp": [
+          "oklch(15.00% 0.00942 286.21)",
+          "oklch(26.43% 0.00942 286.21)",
+          "oklch(37.86% 0.00942 286.21)",
+          "oklch(49.29% 0.00942 286.21)",
+          "oklch(60.71% 0.00942 286.21)",
+          "oklch(72.14% 0.00942 286.21)",
+          "oklch(83.57% 0.00942 286.21)",
+          "oklch(95.00% 0.00942 286.21)"
+        ]
+      },
+      "tint": {
+        "role": "primary",
+        "displayName": "轻强调底色（默认混色示意）",
+        "tonalRamp": [
+          "oklch(15.00% 0.01494 298.57)",
+          "oklch(26.43% 0.01494 298.57)",
+          "oklch(37.86% 0.01494 298.57)",
+          "oklch(49.29% 0.01494 298.57)",
+          "oklch(60.71% 0.01494 298.57)",
+          "oklch(72.14% 0.01494 298.57)",
+          "oklch(83.57% 0.01494 298.57)",
+          "oklch(95.00% 0.01494 298.57)"
+        ]
+      },
+      "warning": {
+        "role": "semantic",
+        "displayName": "需处理文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.12978 53.12)",
+          "oklch(26.43% 0.12978 53.12)",
+          "oklch(37.86% 0.12978 53.12)",
+          "oklch(49.29% 0.12978 53.12)",
+          "oklch(60.71% 0.12978 53.12)",
+          "oklch(72.14% 0.12978 53.12)",
+          "oklch(83.57% 0.12978 53.12)",
+          "oklch(95.00% 0.12978 53.12)"
+        ]
+      },
+      "warning-background": {
+        "role": "semantic",
+        "displayName": "需处理底色",
+        "tonalRamp": [
+          "oklch(15.00% 0.03038 76.98)",
+          "oklch(26.43% 0.03038 76.98)",
+          "oklch(37.86% 0.03038 76.98)",
+          "oklch(49.29% 0.03038 76.98)",
+          "oklch(60.71% 0.03038 76.98)",
+          "oklch(72.14% 0.03038 76.98)",
+          "oklch(83.57% 0.03038 76.98)",
+          "oklch(95.00% 0.03038 76.98)"
+        ]
+      },
+      "warning-dark": {
+        "role": "semantic",
+        "displayName": "深色需处理文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.10364 68.05)",
+          "oklch(26.43% 0.10364 68.05)",
+          "oklch(37.86% 0.10364 68.05)",
+          "oklch(49.29% 0.10364 68.05)",
+          "oklch(60.71% 0.10364 68.05)",
+          "oklch(72.14% 0.10364 68.05)",
+          "oklch(83.57% 0.10364 68.05)",
+          "oklch(95.00% 0.10364 68.05)"
+        ]
+      },
+      "warning-background-dark": {
+        "role": "semantic",
+        "displayName": "深色需处理底色",
+        "tonalRamp": [
+          "oklch(15.00% 0.04975 66.00)",
+          "oklch(26.43% 0.04975 66.00)",
+          "oklch(37.86% 0.04975 66.00)",
+          "oklch(49.29% 0.04975 66.00)",
+          "oklch(60.71% 0.04975 66.00)",
+          "oklch(72.14% 0.04975 66.00)",
+          "oklch(83.57% 0.04975 66.00)",
+          "oklch(95.00% 0.04975 66.00)"
+        ]
+      },
+      "issue-error": {
+        "role": "semantic",
+        "displayName": "阻断问题文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.14988 35.61)",
+          "oklch(26.43% 0.14988 35.61)",
+          "oklch(37.86% 0.14988 35.61)",
+          "oklch(49.29% 0.14988 35.61)",
+          "oklch(60.71% 0.14988 35.61)",
+          "oklch(72.14% 0.14988 35.61)",
+          "oklch(83.57% 0.14988 35.61)",
+          "oklch(95.00% 0.14988 35.61)"
+        ]
+      },
+      "issue-error-dark": {
+        "role": "semantic",
+        "displayName": "深色阻断问题文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.10359 38.34)",
+          "oklch(26.43% 0.10359 38.34)",
+          "oklch(37.86% 0.10359 38.34)",
+          "oklch(49.29% 0.10359 38.34)",
+          "oklch(60.71% 0.10359 38.34)",
+          "oklch(72.14% 0.10359 38.34)",
+          "oklch(83.57% 0.10359 38.34)",
+          "oklch(95.00% 0.10359 38.34)"
+        ]
+      },
+      "error": {
+        "role": "semantic",
+        "displayName": "错误横幅文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.15281 33.29)",
+          "oklch(26.43% 0.15281 33.29)",
+          "oklch(37.86% 0.15281 33.29)",
+          "oklch(49.29% 0.15281 33.29)",
+          "oklch(60.71% 0.15281 33.29)",
+          "oklch(72.14% 0.15281 33.29)",
+          "oklch(83.57% 0.15281 33.29)",
+          "oklch(95.00% 0.15281 33.29)"
+        ]
+      },
+      "error-background": {
+        "role": "semantic",
+        "displayName": "错误横幅底色",
+        "tonalRamp": [
+          "oklch(15.00% 0.01716 35.34)",
+          "oklch(26.43% 0.01716 35.34)",
+          "oklch(37.86% 0.01716 35.34)",
+          "oklch(49.29% 0.01716 35.34)",
+          "oklch(60.71% 0.01716 35.34)",
+          "oklch(72.14% 0.01716 35.34)",
+          "oklch(83.57% 0.01716 35.34)",
+          "oklch(95.00% 0.01716 35.34)"
+        ]
+      },
+      "error-line": {
+        "role": "semantic",
+        "displayName": "错误横幅边框",
+        "tonalRamp": [
+          "oklch(15.00% 0.04556 35.14)",
+          "oklch(26.43% 0.04556 35.14)",
+          "oklch(37.86% 0.04556 35.14)",
+          "oklch(49.29% 0.04556 35.14)",
+          "oklch(60.71% 0.04556 35.14)",
+          "oklch(72.14% 0.04556 35.14)",
+          "oklch(83.57% 0.04556 35.14)",
+          "oklch(95.00% 0.04556 35.14)"
+        ]
+      },
+      "error-dark": {
+        "role": "semantic",
+        "displayName": "深色错误横幅文字",
+        "tonalRamp": [
+          "oklch(15.00% 0.09299 33.83)",
+          "oklch(26.43% 0.09299 33.83)",
+          "oklch(37.86% 0.09299 33.83)",
+          "oklch(49.29% 0.09299 33.83)",
+          "oklch(60.71% 0.09299 33.83)",
+          "oklch(72.14% 0.09299 33.83)",
+          "oklch(83.57% 0.09299 33.83)",
+          "oklch(95.00% 0.09299 33.83)"
+        ]
+      },
+      "error-background-dark": {
+        "role": "semantic",
+        "displayName": "深色错误横幅底色",
+        "tonalRamp": [
+          "oklch(15.00% 0.04080 33.61)",
+          "oklch(26.43% 0.04080 33.61)",
+          "oklch(37.86% 0.04080 33.61)",
+          "oklch(49.29% 0.04080 33.61)",
+          "oklch(60.71% 0.04080 33.61)",
+          "oklch(72.14% 0.04080 33.61)",
+          "oklch(83.57% 0.04080 33.61)",
+          "oklch(95.00% 0.04080 33.61)"
+        ]
+      },
+      "error-line-dark": {
+        "role": "semantic",
+        "displayName": "深色错误横幅边框",
+        "tonalRamp": [
+          "oklch(15.00% 0.08220 34.75)",
+          "oklch(26.43% 0.08220 34.75)",
+          "oklch(37.86% 0.08220 34.75)",
+          "oklch(49.29% 0.08220 34.75)",
+          "oklch(60.71% 0.08220 34.75)",
+          "oklch(72.14% 0.08220 34.75)",
+          "oklch(83.57% 0.08220 34.75)",
+          "oklch(95.00% 0.08220 34.75)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "页面标题",
+        "purpose": "桌面页面主标题；窄容器缩小。"
+      },
+      "body": {
+        "displayName": "界面正文",
+        "purpose": "继承宿主字体的表单、按钮与表格正文。"
+      },
+      "metadata": {
+        "displayName": "辅助信息",
+        "purpose": "路径、账号、状态说明和计数。"
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "button-background",
+        "value": "background-color .12s ease-out",
+        "purpose": "仅在 prefers-reduced-motion: no-preference 时启用按钮背景过渡。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "container-medium",
+        "value": "1050px"
+      },
+      {
+        "name": "container-stacked",
+        "value": "780px"
+      },
+      {
+        "name": "container-narrow",
+        "value": "480px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "主要按钮",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "用于新建、保存和明确的准备动作；颜色继承宿主。",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">保存修改</button>",
+      "css": ".ds-btn-primary { font: 14px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); display: inline-flex; justify-content: center; align-items: center; padding: 8px 14px; min-height: 36px; border: 1px solid var(--sp-line, var(--background-modifier-border, #e4e4eb)); border-radius: 5px; background: var(--sp-bg, var(--background-primary, #fff)); color: var(--sp-ink, var(--text-normal, #22222a)); box-shadow: none; cursor: pointer; white-space: nowrap; } .ds-btn-primary:hover:not(:disabled) { background: var(--sp-bg-subtle, var(--background-secondary, #f7f7fa)); } .ds-btn-primary:focus-visible { outline: 2px solid var(--sp-accent, var(--interactive-accent, #7654d5)); outline-offset: 3px; } .ds-btn-primary:disabled { opacity: .45; cursor: default; } @media (prefers-reduced-motion: no-preference) { .ds-btn-primary { transition: background-color .12s ease-out; } } .ds-btn-primary { background: var(--sp-accent, var(--interactive-accent, #7654d5)); border-color: var(--sp-accent, var(--interactive-accent, #7654d5)); color: #fff; } .ds-btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--sp-accent, var(--interactive-accent, #7654d5)) 86%, #000); }"
+    },
+    {
+      "name": "次级按钮",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "有细边框的辅助动作。",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">导入旧稿</button>",
+      "css": ".ds-btn-secondary { font: 14px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); display: inline-flex; justify-content: center; align-items: center; padding: 8px 14px; min-height: 36px; border: 1px solid var(--sp-line, var(--background-modifier-border, #e4e4eb)); border-radius: 5px; background: var(--sp-bg, var(--background-primary, #fff)); color: var(--sp-ink, var(--text-normal, #22222a)); box-shadow: none; cursor: pointer; white-space: nowrap; } .ds-btn-secondary:hover:not(:disabled) { background: var(--sp-bg-subtle, var(--background-secondary, #f7f7fa)); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--sp-accent, var(--interactive-accent, #7654d5)); outline-offset: 3px; } .ds-btn-secondary:disabled { opacity: .45; cursor: default; } @media (prefers-reduced-motion: no-preference) { .ds-btn-secondary { transition: background-color .12s ease-out; } }"
+    },
+    {
+      "name": "文字按钮",
+      "kind": "button",
+      "refersTo": "button-text",
+      "description": "低强调的局部动作与返回操作。",
+      "html": "<button class=\"ds-btn-text\" type=\"button\">完整预览</button>",
+      "css": ".ds-btn-text { font: 14px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); display: inline-flex; justify-content: center; align-items: center; padding: 8px 14px; min-height: 36px; border: 1px solid var(--sp-line, var(--background-modifier-border, #e4e4eb)); border-radius: 5px; background: var(--sp-bg, var(--background-primary, #fff)); color: var(--sp-ink, var(--text-normal, #22222a)); box-shadow: none; cursor: pointer; white-space: nowrap; } .ds-btn-text:hover:not(:disabled) { background: var(--sp-bg-subtle, var(--background-secondary, #f7f7fa)); } .ds-btn-text:focus-visible { outline: 2px solid var(--sp-accent, var(--interactive-accent, #7654d5)); outline-offset: 3px; } .ds-btn-text:disabled { opacity: .45; cursor: default; } @media (prefers-reduced-motion: no-preference) { .ds-btn-text { transition: background-color .12s ease-out; } } .ds-btn-text { color: var(--sp-accent, var(--interactive-accent, #7654d5)); border-color: transparent; background: transparent; padding-left: 5px; padding-right: 5px; }"
+    },
+    {
+      "name": "文本输入框",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "工作底色、细边框与强调色焦点；字号沿用宿主界面。",
+      "html": "<input class=\"ds-input\" aria-label=\"发布标题\" placeholder=\"发布标题\" value=\"把重复工作交给 AI 的三个步骤\" />",
+      "css": ".ds-input { font: 14px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); width: 100%; min-width: 0; min-height: 38px; padding: 9px 12px; background: var(--sp-bg, var(--background-primary, #fff)); color: var(--sp-ink, var(--text-normal, #22222a)); border: 1px solid var(--sp-line, var(--background-modifier-border, #e4e4eb)); border-radius: 5px; box-shadow: none; caret-color: var(--sp-accent, var(--interactive-accent, #7654d5)); } .ds-input::placeholder { color: var(--sp-muted, var(--text-muted, #646472)); opacity: 1; } .ds-input:focus { border-color: var(--sp-accent, var(--interactive-accent, #7654d5)); } .ds-input:focus-visible { outline: 2px solid var(--sp-accent, var(--interactive-accent, #7654d5)); outline-offset: 3px; }"
+    },
+    {
+      "name": "顶部导航",
+      "kind": "nav",
+      "description": "三个平面导航，当前项以强调文字和下划线表示。",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Social Publisher\"><button type=\"button\" class=\"ds-nav-item ds-nav-active\" aria-current=\"page\">作品</button><button type=\"button\" class=\"ds-nav-item\">处理记录</button><button type=\"button\" class=\"ds-nav-item\">设置</button></nav>",
+      "css": ".ds-nav { display: flex; gap: 20px; border-bottom: 1px solid var(--sp-line, var(--background-modifier-border, #e4e4eb)); } .ds-nav-item { font: 14px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); color: var(--sp-ink, var(--text-normal, #22222a)); border: 0; border-bottom: 2px solid transparent; background: transparent; box-shadow: none; border-radius: 0; padding: 18px 12px; cursor: pointer; } .ds-nav-active { color: var(--sp-accent, var(--interactive-accent, #7654d5)); border-bottom-color: var(--sp-accent, var(--interactive-accent, #7654d5)); font-weight: 600; } .ds-nav-item:hover { background: var(--sp-bg-subtle, var(--background-secondary, #f7f7fa)); } .ds-nav-item:focus-visible { outline: 2px solid var(--sp-accent, var(--interactive-accent, #7654d5)); outline-offset: 3px; }"
+    },
+    {
+      "name": "状态胶囊",
+      "kind": "chip",
+      "refersTo": "badge-accent",
+      "description": "中性、强调和需处理三类状态；颜色之外始终保留文字。",
+      "html": "<div class=\"ds-badges\"><span class=\"ds-badge\">草稿</span><span class=\"ds-badge ds-badge-accent\">待发布</span><span class=\"ds-badge ds-badge-warning\">需处理</span></div>",
+      "css": ".ds-badges { display: flex; gap: 7px; } .ds-badge { display: inline-block; font: 12px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); padding: 2px 9px; border-radius: 20px; background: var(--sp-bg-subtle, var(--background-secondary, #f7f7fa)); color: var(--sp-muted, var(--text-muted, #646472)); white-space: nowrap; } .ds-badge-accent { background: color-mix(in srgb, var(--sp-accent, var(--interactive-accent, #7654d5)) 9%, var(--sp-bg, var(--background-primary, #fff))); color: var(--sp-accent, var(--interactive-accent, #7654d5)); } .ds-badge-warning { background: #fff1dd; color: #9e4d00; } :host-context(.theme-dark) .ds-badge-warning { background: #4a331b; color: #ffc586; }"
+    },
+    {
+      "name": "话题",
+      "kind": "chip",
+      "refersTo": "topic",
+      "description": "预览中的话题候选文字；不是独立操作按钮。",
+      "html": "<div class=\"ds-topics\"><span class=\"ds-topic\">#AI工作流</span><span class=\"ds-topic\">#效率工具</span></div>",
+      "css": ".ds-topics { display: flex; gap: 7px; flex-wrap: wrap; margin: 10px 0; } .ds-topic { font: 12px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); padding: 2px 8px; border-radius: 15px; background: color-mix(in srgb, var(--sp-accent, var(--interactive-accent, #7654d5)) 9%, var(--sp-bg, var(--background-primary, #fff))); color: var(--sp-accent, var(--interactive-accent, #7654d5)); }"
+    },
+    {
+      "name": "普通面板",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "表单与内容检查的平面容器，通过细线建立边界。",
+      "html": "<section class=\"ds-panel\"><h2 class=\"ds-panel-title\">本次内容</h2><p class=\"ds-panel-note\">本地准备，尚未提交平台</p></section>",
+      "css": ".ds-panel { font: 14px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); min-width: 0; border: 1px solid var(--sp-line, var(--background-modifier-border, #e4e4eb)); border-radius: 6px; padding: 20px; background: var(--sp-bg, var(--background-primary, #fff)); color: var(--sp-ink, var(--text-normal, #22222a)); } .ds-panel-title { margin: 0 0 15px; font-size: 17px; font-weight: 650; line-height: 1.45; } .ds-panel-note { margin: 0; font-size: 12px; line-height: 1.55; color: var(--sp-muted, var(--text-muted, #646472)); }"
+    },
+    {
+      "name": "正文来源选项",
+      "kind": "custom",
+      "description": "并列单选项；当前来源具有强调边框和轻底色。",
+      "html": "<div class=\"ds-segments\"><label class=\"ds-segment ds-segment-active\"><input type=\"radio\" name=\"ds-body-source\" checked />整篇纯正文</label><label class=\"ds-segment\"><input type=\"radio\" name=\"ds-body-source\" />指定章节</label></div>",
+      "css": ".ds-segments { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font: 14px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); color: var(--sp-ink, var(--text-normal, #22222a)); } .ds-segment { display: flex; align-items: center; gap: 10px; border: 1px solid var(--sp-line, var(--background-modifier-border, #e4e4eb)); border-radius: 5px; padding: 10px; cursor: pointer; } .ds-segment input { accent-color: var(--sp-accent, var(--interactive-accent, #7654d5)); } .ds-segment-active { border-color: var(--sp-accent, var(--interactive-accent, #7654d5)); background: color-mix(in srgb, var(--sp-accent, var(--interactive-accent, #7654d5)) 9%, var(--sp-bg, var(--background-primary, #fff))); color: var(--sp-accent, var(--interactive-accent, #7654d5)); } .ds-segment input:focus-visible { outline: 2px solid var(--sp-accent, var(--interactive-accent, #7654d5)); outline-offset: 3px; }"
+    },
+    {
+      "name": "选中作品行",
+      "kind": "custom",
+      "description": "复选框、标题、路径与状态组成紧凑表格行；选中状态使用轻强调底色。",
+      "html": "<table class=\"ds-table\"><tbody><tr class=\"ds-selected\"><td class=\"ds-check-cell\"><input class=\"ds-checkbox\" type=\"checkbox\" checked aria-label=\"选择示例作品\" /></td><td><button class=\"ds-title-button\" type=\"button\">把重复工作交给 AI 的三个步骤</button><span class=\"ds-path\">P001-示例作品/小红书.md</span><span class=\"ds-account\">演示账号</span></td><td class=\"ds-status-cell\"><span class=\"ds-status\">待发布</span></td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; table-layout: fixed; border-collapse: collapse; font: 14px/1.5 var(--font-interface, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif); color: var(--sp-ink, var(--text-normal, #22222a)); } .ds-table td { border-top: 1px solid var(--sp-line, var(--background-modifier-border, #e4e4eb)); padding: 12px; vertical-align: middle; } .ds-selected { background: color-mix(in srgb, var(--sp-accent, var(--interactive-accent, #7654d5)) 9%, var(--sp-bg, var(--background-primary, #fff))); } .ds-table .ds-check-cell { width: 44px; } .ds-checkbox { accent-color: var(--sp-accent, var(--interactive-accent, #7654d5)); width: 16px; height: 16px; margin: 0; cursor: pointer; } .ds-checkbox:focus-visible, .ds-title-button:focus-visible { outline: 2px solid var(--sp-accent, var(--interactive-accent, #7654d5)); outline-offset: 3px; } .ds-title-button { display: block; font: inherit; font-weight: 600; text-align: left; color: var(--sp-ink, var(--text-normal, #22222a)); border: 0; padding: 0; background: transparent; white-space: normal; overflow-wrap: anywhere; cursor: pointer; } .ds-title-button:hover { background: var(--sp-bg-subtle, var(--background-secondary, #f7f7fa)); } .ds-path, .ds-account { display: block; font-size: 12px; color: var(--sp-muted, var(--text-muted, #646472)); } .ds-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-table .ds-status-cell { width: 85px; } .ds-status { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 12px; white-space: nowrap; color: var(--sp-accent, var(--interactive-accent, #7654d5)); background: color-mix(in srgb, var(--sp-accent, var(--interactive-accent, #7654d5)) 9%, var(--sp-bg, var(--background-primary, #fff))); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Obsidian 图文准备工作台",
+    "overview": "现有界面是一块桌面 Obsidian 工作面：继承宿主的浅色或深色主题、界面字体和强调色，以紧凑表格、左右并列面板和细分隔线组织内容。默认回退强调色为紫色；它集中用于当前导航、明确选择和主要动作，不形成独立于宿主的品牌配色。\n\n此记录提取自 `src/ui.ts`、`styles.css`，并对照已确认的 `UI/02-workspace.png`、`UI/03-editor.png` 以及 `.impeccable/review/` 的桌面、编辑、窄容器截图。实现值以样式源码为准。截图中的 macOS 标题栏、知识库侧栏、Obsidian 标签栏是合成宿主外围，不属于插件组件。\n\n记录范围为已实现的本地 MVP UI。参考稿和测试截图中的封面均为合成资产，没有新增上线图片。窄容器截图证明容器降级样式的呈现，不代表已支持手机；原生 Obsidian 加载和真实小红书页面仍未验证。",
+    "keyCharacteristics": [
+      "宿主主题驱动的中性底色、正文与细线。",
+      "顶部三个导航，内容区域以表格和并列面板为主。",
+      "少量强调色表达选中、当前步骤和主要动作。",
+      "图像按真实内容展示，封面、序号和关联状态可直接核对。",
+      "容器缩窄时逐级减少次要列并改为纵向排列。"
+    ],
+    "rules": [
+      {
+        "name": "The Host Theme Rule",
+        "body": "先使用宿主语义变量，紫色仅为未提供宿主强调色时的回退。",
+        "section": "colors"
+      },
+      {
+        "name": "The Container Rule",
+        "body": "先按插件工作区实际宽度保留可读内容，再逐级减少次要信息；窄容器测试不能作为移动平台支持声明。",
+        "section": "layout"
+      }
+    ],
+    "dos": [
+      "**Do** 优先继承 Obsidian 主题、字体和强调色，保留已有回退值。",
+      "**Do** 用细线、紧凑行、局部说明和左右面板组织桌面工作内容。",
+      "**Do** 让选中、禁用、错误和键盘焦点具有明确且一致的可见状态。",
+      "**Do** 保留真实图像比例、显式图序及封面标签，区分预览完整图与缩略裁剪。",
+      "**Do** 按现有容器断点降级，允许标题和动作换行。"
+    ],
+    "donts": [
+      "**Don't** 把合成宿主的标题栏、知识库侧栏和标签栏实现为插件组件。",
+      "**Don't** 把参考稿中的未实现控件、装饰或素材风格写成现有设计能力。",
+      "**Don't** 引入大面积品牌色、展示字体、投影卡片或新动效替换现有宿主工具风格。",
+      "**Don't** 只用颜色表达状态，或移除键盘焦点轮廓。",
+      "**Don't** 将窄容器截图、合成资产或本地 UI 审查写成手机、原生加载或真实平台验证。"
+    ]
+  }
+}

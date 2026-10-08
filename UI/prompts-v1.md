@@ -1,0 +1,101 @@
+# GPT Image 页面提示词 v1
+
+状态：待用户视觉确认。生成方式：内置 image_gen，不使用 API CLI。
+
+每张独立生成，共用下面的视觉约束；先生成 02-workspace 作为视觉参考，其余页面参考该图的视觉系统。图像中的文字与控件仅为设计参考，PRD 与后续原型约定定义业务行为。
+
+## 共用提示词
+
+```text
+Use case: ui-mockup
+Asset type: high fidelity desktop Obsidian plugin screen design, one complete screenshot, flat front facing.
+Product: Obsidian Social Publisher. Primary audience: a Chinese Obsidian writer preparing local image posts for Xiaohongshu.
+Output: a sharp landscape 1600x1000-style image with legible Simplified Chinese. One screenshot only, no montage, no device mockup, no perspective, no external caption. Draw a plausible usable app, not a marketing website.
+VISUAL SYSTEM: inherit Obsidian desktop light theme. Off-white canvas #FAFAF9, white content #FFFFFF, pale warm gray nav #F3F2F0, subtle #E4E2DE 1px dividers. Dark text #292725, secondary #77736E. Muted Obsidian violet #7560B5 ONLY for primary action, selected controls, focus. Soft gray small radii 5-7px, no glossy shadows, no gradients, no glass. PingFang SC / system sans, normal compact 14px labels and 15px body at conceptual desktop scale, 22px page titles, 28-32px image-poster headlines. Clear adequate contrast. Standard line icons. Forms are native-looking with explicit labels. Compact intentional vertical rhythm: 8/12/16/24px.
+SHELL on every screen: macOS top titlebar with small traffic lights at x18 y18 and title "Obsidian"; 42px left vertical Obsidian ribbon; next 176px narrow file sidebar containing "演示知识库", search icon, folders "内容创作", expanded "发布作品", items "AI 的三个步骤", "Obsidian 素材整理", "标题练习", then collapsed "创作笔记"; footer small "本地文件". Main area begins x218. A native document tab labeled "Social Publisher", then slim plugin header "Social Publisher" left and top tabs "作品" "处理记录" "设置", right small text "示例数据 · 设计稿". No decorative illustrations in chrome, no metric dashboard cards, no fake analytic charts. Use main area efficiently.
+CONSISTENT FIXTURES: P001 title "把重复工作交给 AI 的三个步骤", account "演示账号", 3 images, ready state "待发布". P002 "我的 Obsidian 素材整理方法", 4 images, "待发布". P003 "标题不用从头写", 1 image, "待发布". P004 "一周内容复盘", missing image, state "需处理". P005 "先写一个能用的版本", 2 images, "草稿". P006 "给灵感留一个入口", 1 image, "草稿". No real personal account, credentials, names, or private material.
+P001 COVER DESIGN must stay consistent: warm cream paper poster, tiny upper-left "AI 工作笔记", big charcoal Chinese text "把重复工作\n交给 AI", small violet circular "3" / "三个步骤", very simple thin-line folder-arrow-spark diagram. Second poster cream with violet accent "01 拆出重复步骤"; third poster cream with violet accent "02 留下人的判断". These are concrete sample post images, not cards decorating the application.
+BOUNDARIES: Screens are design proposals, all records/sample pictures synthetic. Platform layout is only approximate. Local draft, local prepared, editor filled, awaiting human, result unverified, published are separate states. Never imply filling an editor saves a platform draft or publishes. No store/product-link controls. No working automatic original-content declaration. No publish or platform-save-draft buttons as available functions. Demo browser stage explicitly says "演示" or "模拟". Preserve sample count and picture order. All removals of association mean no file deletion. No future-platform navigation, no fabricated connected accounts.
+CRITICAL: Do not invent platform character limits. Do not draw any counters using a slash and maximum, such as 14/100 or 80/2000. If a length counter is needed, use only the current content length labeled 字, with no maximum. Image carousel 1 / 3 is allowed.
+
+```
+
+## 01-first-run — 首次使用
+
+输出：`01-first-run.png`
+
+```text
+PAGE: first use, "作品" tab active. File sidebar present but plugin work area has NO records yet. Page title "发布作品" and top right subtle settings icon. Center a modest 660px-wide setup section aligned in content area, not gigantic hero. Headline "从一个内容目录开始". Text "选择存放发布稿的文件夹，建立你的作品列表。" An editable directory field label "内容目录", value "内容创作/发布作品/", right button "选择目录". Below small line "只发现所选目录内的笔记；新图片需手动关联。". Primary "读取目录" and secondary "新建第一篇作品", text link "将当前笔记设为作品". Below a light divider, a small understated example tree with "一个作品一个文件夹", "作品主题 / 小红书.md / 图片". Two small toggle rows: "包含子目录" on, "显示尚未登记的 Markdown" on. Keep native tooling density and useful calm blank space. Small footer "首次配置 · 示例目录". NO cloud onboarding, no login, no stats, no extension requirement for local work.
+```
+
+## 02-workspace — 作品工作台
+
+输出：`02-workspace.png`
+
+```text
+PAGE: populated main workspace. "作品" tab active. Main title "发布作品", nearby small "6 篇", upper-right secondary "导入旧稿" primary "+ 新建作品". Below one toolbar: search input "搜索标题或文件名", filter tabs "全部 6" selected, "待发布 3", "草稿 2", "需处理 1", account dropdown "全部账号". Body split: 760px-ish list left and 390px preview right separated by a divider. Compact table heading checkbox, "作品", "状态", "图片", "更新". Six rows of fixtures: first two checkboxes checked violet; first row focused pale violet. Thumbnails about 50px, title, secondary source filename "AI 的三个步骤 / 小红书.md" etc. States use small restrained labels; P004 says "缺少 1 张图片" amber and "需处理". Other entries clear. Timestamp samples "08:10", "昨天", "周一" noncentral. Table footer text "已选 2 篇 · 当前列表 6 篇", secondary "取消选择", primary "准备所选 2 篇". Right inspector: label "本次内容", sample cream P001 cover ~260x340, dots and "1 / 3", title exactly P001; first two body lines, two small topic chips "#AI工作流" "#效率工具", compact "3 张图片 · 待发布"; button "编辑作品" and text-link "完整预览". Thin bottom note "本地准备，尚未提交平台". No third app navigation column, no metrics cards.
+```
+
+## 03-editor — 作品编辑与图序
+
+输出：`03-editor.png`
+
+```text
+PAGE: editing P001. Header breadcrumb "作品 / AI 的三个步骤", title "编辑作品", right buttons "取消", primary "保存修改". A white two-column edit workspace: left 730px working form, right 400px image inspector. Form: "发布标题" input P001 title, small count without claiming a platform limit. "正文来源" segmented options "整篇纯正文" selected, "指定章节" not selected; source note link "AI 的三个步骤 / 小红书.md", tiny "在 Obsidian 中打开". Textarea label "发布正文", containing real paragraphs: "每次发内容，最费时间的往往不是写作，而是重复整理。\n\n先列出你每周重复三次以上的步骤，再选一个交给 AI。\n\n1. 拆出重复步骤\n2. 写清输入和输出\n3. 留下人的判断". Below "小红书话题" chips "AI工作流" "效率工具" plus "添加话题", help "候选文字，尚未与平台话题关联". Account dropdown "演示账号"; "原创声明" select "未确认", help "在官方编辑器确认". Right "本次图片 · 3 张": horizontal or vertical three numbered thumbnails, 01 cover selected with "封面" small tag, 02 and 03 sample posters. Reorder handles, selected-image actions "设为封面" and "移除关联". Footer small "移除关联不会删除原图". Under divider "候选素材 · 2 张", two subtle thumbnails with unchecked boxes and "+ 添加所选", clear separation from included images. Bottom page-wide local-save status and "发布预览" secondary. All images must look like sample posters, not fake photographs. No remote action here.
+```
+
+## 04-preview — 实际提交内容预览
+
+输出：`04-preview.png`
+
+```text
+PAGE: P001 preview. Breadcrumb "作品 / AI 的三个步骤"; page title "发布预览"; top actions "返回编辑", primary "加入准备队列". Two columns: left about 540px centered platform-like image and text preview, NOT a literal phone frame. At top small "小红书图文 · 本次版本". Large portrait cream P001 poster 320x400 with left/right arrows, "1 / 3"; three small ordered thumbnails beneath. Then P001 title, sample body paragraphs with line breaks matching editor, plain text topics "#AI工作流 #效率工具". No likes or fake views. Right about 550px details with section "提交内容检查", compact successful rows "标题与正文已转换", "3 张图片可读取", "封面与图序已确认". Metadata "正文来源  整篇纯正文", "封面  封面.png", "账号标识  演示账号", "原创声明  未确认". Two amber informative rows "2 个话题为候选文字，需在官方页面核对" and "原创声明需在官方编辑器确认". A section "格式处理" with native disclosure row "粗体 → 普通文字". Small note "平台效果以官方编辑器为准". Bottom muted "当前内容已核对；修改正文或图片后需重新预览". Primary represents only local preparation. NO successful publish or save draft.
+```
+
+## 05-create — 新建发布作品
+
+输出：`05-create.png`
+
+```text
+PAGE: workspace under a native centered dialog of width ~680px, light dim overlay. Modal heading "新建发布作品", close X. Short useful text "创建一个作品文件夹和一篇发布笔记。". Form label "作品主题", entered "把重复工作交给 AI"; label "保存目录", selected "内容创作/发布作品/", button "选择"; label "发布平台", value "小红书图文"; label "发布笔记名称", value "小红书.md". A modest bordered preview labeled "将创建" shows tree "把重复工作交给 AI/" with nested "小红书.md" and "图片/". Help "笔记只写对外文案，图片稍后手动关联。". "账号标识" optional dropdown "稍后设置". Footer secondary "取消" primary "创建并打开". Keep precise focused dialog, standard input shapes, no wizard stages or mandatory fields beyond sensible topic and directory. Show underlying workbench enough to anchor consistency. No folder migration, no automatic generated content.
+```
+
+## 06-import — 旧稿导入与正文范围
+
+输出：`06-import.png`
+
+```text
+PAGE: full plugin view for importing a mixed existing note, no remote actions. Header "导入旧稿", breadcrumb "作品 / 导入"; top right "取消". Main two-column layout: left 620px list/source preview, right 630px registration form. Left top "选择笔记" search "搜索所选目录内的 Markdown", selected result "AI 工作流初稿.md" with small "尚未登记"; source preview has clearly separated heading blocks "研究记录" grayed, "发布正文" highlighted with a thin violet left rule and actual short public paragraphs, "复盘" grayed. Only selected section is highlighted. Right section "本次发布范围", toggle "整篇纯正文" unselected, "指定章节" selected. Field "正文章节" select "发布正文"; descriptive "仅使用此章节，研究记录与复盘不进入发布正文。". Field "发布标题" sample P001, section "识别到的图片" 3 checked sample thumbnails, clear "确认后加入本次图片". A warning "请确认标题、正文范围和图片，原笔记保持原位。" Footer primary "登记为发布作品", secondary "返回". Side note "保留原有属性与内容". No selected scope by default in spec but screenshot explicitly shows user-chosen section, indicated with helper "已选择：发布正文". Do not show an automatic default uploading whole mixed note.
+```
+
+## 07-batch-confirm — 批次确认
+
+输出：`07-batch-confirm.png`
+
+```text
+PAGE: a focused batch confirmation full page, "作品" active. Breadcrumb "作品 / 准备队列"; title "确认本次任务"; secondary "返回作品". Top narrow scope line "已选 2 篇 · 仅包含当前明确选择". Table: checkmark, P001 with 3 images and preview thumbnail, P002 with 4 images, both "已准备", account "演示账号"; each has "查看预览" subtle link. Below two columns. Left: "执行方式", segmented/select showing "辅助填写（演示）" active and "仅本地准备" available. Body "逐篇上传与填写，完成后等待你在官方编辑器确认。". Small "平台草稿保存与直接发布尚未验证" as informative text, not buttons. Account panel "账号核对" displays "本地标识：演示账号" and "官方页面：演示账号（模拟）"; checked explicit checkbox "已核对本次目标账号". Right: "提交前检查", small rows "正文与图序已固定", "图片版本已核对", "2 篇均无阻断问题". Nonintrusive note "任务开始后修改原稿，需要重新准备；不改变本次版本。". Footer left "演示任务，不连接平台", right secondary "取消" primary "开始辅助填写（演示）". No publish button or fake platform draft.
+```
+
+## 08-queue — 辅助填写队列
+
+输出：`08-queue.png`
+
+```text
+PAGE: queue demo. Header "辅助填写队列", small violet-outlined "演示", right "停止剩余任务" secondary. Narrow progress "第 1 / 2 篇 · 等待人工确认". Left column 420px list of 2 queue items, first P001 selected with state "待人工确认", second P002 with state "尚未开始". Right main ~820px detail. Section P001 title. Vertical steps with checkmarks "本地版本已固定", "3 张图片已上传（模拟）", "标题正文已填入（模拟）", then amber current "等待你在官方编辑器确认". Below a light amber area "已填入编辑器 ≠ 已保存平台草稿" and body "当前作品处理完成前，不会进入下一篇。". A small three-image thumbnail strip in confirmed order, and short text summary. Primary button "打开官方编辑器（演示）"; two secondary controls "记录本篇处理结果" and "暂停队列". A dropdown-like result menu visibly open below "记录本篇处理结果", with options "仅完成填写", "我已保存平台草稿，待核实", "我已提交，待核实". They are human-reported, awaiting verification, never an automatic published claim. Footer "演示流程 · 不会自动发布". No green published banner. Avoid dense implementation/security text.
+```
+
+## 09-records — 处理记录与结果待核实
+
+输出：`09-records.png`
+
+```text
+PAGE: records. Top "处理记录" tab active, page title "处理记录", small "示例记录", search and filter "全部结果". Body left about 760px compact table headers "作品 / 动作 / 结果 / 时间". Four rows: P001 "辅助填写" "已填入编辑器（模拟）" "今天 08:20"; P002 "提交结果" amber "结果待核实（模拟）" "今天 08:22" selected; P003 "本地准备" "已准备" "昨天"; P004 "本地准备" "失败：缺少图片" "昨天". Right detail panel title "结果待核实", subtle amber icon, P002 title, account "演示账号", time "今天 08:22". Main text "页面中断，尚未确认平台是否已接收。". Short steps "已完成：填写标题正文与 4 张图片（模拟）" and "未确认：提交结果". Clear action primary "前往官方后台核实（演示）", secondary "记录核实结果". Detail section "核实记录" empty line "暂无核实证据"; small "发布链接" value "尚未确认", "审核状态" value "未知", "公开可见" value "未知". Small note "不会自动重试提交". Bottom item "此页为状态示例，不代表真实平台操作". Do not show automatic retry or unconditional published success.
+```
+
+## 10-settings — 设置与本地连接
+
+输出：`10-settings.png`
+
+```text
+PAGE: settings. Top tab "设置" active. Page title "设置". Main content 900px-wide readable dense sections, NOT a wall of cards. "内容目录" heading, one row folder "内容创作/发布作品/" with subtle "更换" and "移除范围" controls, "+ 添加目录"; checkbox rows "包含子目录" checked, "显示尚未登记的 Markdown" checked. Small help "仅在这些目录中发现候选作品。". Divider. "作品默认值": field "新建笔记名称" value "小红书.md"; "图片子目录" value "图片"; "默认账号标识" select "演示账号", helper "用于本地核对，不保存登录凭据。". Divider. "浏览器辅助填写": compact state "未连接"; button "连接浏览器扩展（演示）"; short "本地编辑和准备不需要浏览器连接。"; inline platform capability text "当前设计：辅助填写" and "平台草稿、直接发布：待专项验证". Do not offer those as enabled actions. Divider. "本地记录": one link "打开处理记录", and optional neutral "查看诊断信息" disclosure collapsed, NO delete data button. Footer secondary "恢复未保存修改" primary "保存设置". Nice consistent alignments, no login password/token fields, no invented remote services.
+```

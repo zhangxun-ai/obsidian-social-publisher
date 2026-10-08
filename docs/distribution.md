@@ -1,0 +1,29 @@
+# 安装与发行
+
+仓库：https://github.com/zhangxun-ai/obsidian-social-publisher
+
+## 通过 GitHub 安装
+
+项目 README 的安装按钮打开 [HTTPS 安装页](https://zhangxun-ai.github.io/obsidian-social-publisher/)，页内使用 `obsidian://brat?plugin=zhangxun-ai%2Fobsidian-social-publisher`。首次需在目标知识库安装并启用 BRAT；点击链接后 BRAT 打开安装确认窗，用户确认后下载 GitHub Release 中的 `main.js`、`manifest.json` 和 `styles.css`。链接本身不会绕过确认或安装 BRAT。
+
+HTTPS 页面避免 GitHub README 拦截 `obsidian://` 链接。若浏览器仍没有打开 Obsidian，可在 BRAT 设置选择 **Add a beta plugin**，输入 `zhangxun-ai/obsidian-social-publisher` 后确认。始终使用正式的 BRAT/GitHub 安装流程，无需复制插件文件。后续版本在 BRAT 检查更新，自动更新遵从用户的 BRAT 设置。
+
+插件 ID 为 `social-publisher`，仓库名称保留 `obsidian-social-publisher`。插件 ID 在公开后保持稳定，避免安装出两份插件。旧本地开发包未公开分发，不作自动迁移或删除。
+
+## 社区市场
+
+当前尚未上架社区市场，不能在插件搜索里找到 Social Publisher。官方流程为：
+
+1. 在 [Obsidian 社区目录](https://community.obsidian.md) 登录 Obsidian 账号并连接 GitHub 账号。
+2. 进入 Plugins → New plugin，提交仓库 `https://github.com/zhangxun-ai/obsidian-social-publisher`。
+3. 根据自动审查和官方审核反馈修复；通过后用户才可从 Obsidian 社区插件中直接安装。
+
+首次提交资料已准备：根目录 README、MIT LICENSE、合法 manifest、versions.json，以及匹配版本的 Release 独立附件。原生加载仍需实测，不将发行结构检查视为市场审核通过。账号登录与连接由账号持有人完成。
+
+## 维护者发布步骤
+
+修改 `manifest.json` 与 `package.json` 到同一 `x.y.z` 版本；同步锁文件和 `versions.json`，新增对应 `docs/releases/x.y.z.md`。在项目根运行 `npm ci`、`npm run check`。通过后提交推送，并推送相同版本的 tag（不带 `v`）。Release 工作流会重新安装依赖、运行检查，再上传三个安装附件。main 分支和 PR 的 Check 工作流也会执行完整检查。
+
+Release 不包含个人知识库、插件 data.json、本地测试库、截图会话或缓存。浏览器配套扩展目前仍需在 Chrome 加载 extension 目录；Obsidian 的安装入口只安装 Obsidian 插件。
+
+来源：[官方提交要求](https://docs.obsidian.md/plugins/releasing/submit-plugin)、[Manifest](https://docs.obsidian.md/Reference/Manifest)、[BRAT 开发者指南](https://github.com/TfTHacker/obsidian42-brat/blob/main/BRAT-DEVELOPER-GUIDE.md)、[BRAT URI 处理实现](https://github.com/TfTHacker/obsidian42-brat/blob/main/src/main.ts)。

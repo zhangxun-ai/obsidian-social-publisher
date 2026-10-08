@@ -1,0 +1,10 @@
+{
+  "id": "social-publisher",
+  "name": "Social Publisher",
+  "version": "0.1.0",
+  "minAppVersion": "1.14.4",
+  "description": "Prepare local image posts, review exact text and image order, and assist filling the official Xiaohongshu editor.",
+  "author": "zhangxun-ai",
+  "authorUrl": "https://github.com/zhangxun-ai",
+  "isDesktopOnly": true
+}

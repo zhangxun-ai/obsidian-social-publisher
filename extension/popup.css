@@ -1,0 +1,16 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; font-size: 13px; }
+body { width: 350px; margin: 0; padding: 18px; line-height: 1.55; }
+h1 { margin: 0 0 10px; font-size: 18px; }
+p { margin: 10px 0; }
+label { display: block; margin: 12px 0; font-weight: 600; }
+input:not([type=checkbox]), select { display: block; box-sizing: border-box; width: 100%; margin-top: 5px; padding: 8px; border: 1px solid #8b8b8b55; border-radius: 6px; background: transparent; color: inherit; }
+button { padding: 8px 10px; border: 0; border-radius: 6px; background: #bf3d36; color: white; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+.secondary { background: #7773; color: inherit; }
+.row { display: flex; gap: 8px; }
+.notice { padding: 10px; border: 1px solid #c8904166; border-radius: 6px; background: #c8904112; }
+.muted { opacity: .7; font-size: 12px; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+.check input { margin-top: 4px; }
+#fill { width: 100%; }
+#status { padding: 8px 0; overflow-wrap: anywhere; }

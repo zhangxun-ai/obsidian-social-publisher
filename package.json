@@ -1,0 +1,35 @@
+{
+  "name": "obsidian-social-publisher",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "author": "zhangxun-ai",
+  "repository": { "type": "git", "url": "https://github.com/zhangxun-ai/obsidian-social-publisher.git" },
+  "bugs": { "url": "https://github.com/zhangxun-ai/obsidian-social-publisher/issues" },
+  "engines": { "node": ">=22.21.0" },
+  "description": "Obsidian 本地图文准备与官方网页辅助填写",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run build && npm run check:release",
+    "check:release": "node scripts/check-release.mjs",
+    "preview": "node scripts/preview.mjs",
+    "test-vault": "node scripts/test-vault.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "esbuild": "0.28.2",
+    "jsdom": "^29.1.1",
+    "obsidian": "1.13.1",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "overrides": {
+    "moment": "2.31.0"
+  }
+}

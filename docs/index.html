@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="通过 BRAT 安装 Social Publisher 到 Obsidian，无需复制插件文件。">
+<meta name="color-scheme" content="light dark">
+<title>安装 Social Publisher</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;color:#22222a;background:#f7f7fa;line-height:1.65;font-size:16px}*{box-sizing:border-box}body{margin:0;padding:64px 24px}main{max-width:640px;margin:auto}h1{font-size:32px;line-height:1.25;letter-spacing:-.025em;margin:12px 0 18px}h2{font-size:18px;margin:30px 0 8px}p{margin:10px 0}.eyebrow,.muted{color:#646472}.eyebrow{font-size:13px}a{color:#7654d5}a:focus-visible,button:focus-visible{outline:2px solid #7654d5;outline-offset:4px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 10px}.primary{display:inline-block;background:#7654d5;color:white;text-decoration:none;padding:11px 20px;border-radius:5px;font-weight:600}.secondary{padding:11px 0}.steps{padding-left:22px}.steps li{padding:4px 0}.repo{display:flex;gap:8px;align-items:center;flex-wrap:wrap}code{font-size:14px;overflow-wrap:anywhere}button{border:1px solid #e4e4eb;border-radius:5px;background:#fff;color:#22222a;padding:7px 12px;font:inherit;cursor:pointer}.boundary{border-top:1px solid #e4e4eb;margin-top:32px;padding-top:14px;font-size:14px}#status{font-size:14px;min-height:24px}@media(max-width:480px){body{padding:32px 18px}h1{font-size:27px}}@media(prefers-color-scheme:dark){:root{background:#1e1e24;color:#e7e7ed}.eyebrow,.muted{color:#ababba}a{color:#bda8ff}button{background:#292930;color:#e7e7ed;border-color:#444451}.boundary{border-color:#444451}.primary{color:#fff}}
+</style>
+</head>
+<body>
+<main>
+<p class="eyebrow">OBSIDIAN 桌面插件 · 0.1.0 · MIT 开源</p>
+<h1>安装 Social Publisher</h1>
+<p>在 Obsidian 整理图文、关联封面与图片，核对准确预览后辅助填写小红书官方编辑器。</p>
+<ol class="steps">
+<li>首次使用：在目标知识库安装并启用 <a href="obsidian://show-plugin?id=obsidian42-brat">BRAT</a>。</li>
+<li>点击下方安装按钮，在 BRAT 窗口确认安装 Social Publisher。</li>
+<li>打开 Social Publisher 工作台，选择内容目录并开始整理。</li>
+</ol>
+<div class="actions"><a id="install" class="primary" href="obsidian://brat?plugin=zhangxun-ai%2Fobsidian-social-publisher">安装 Social Publisher</a><a class="secondary" href="https://github.com/zhangxun-ai/obsidian-social-publisher">查看源码与说明</a></div>
+<p id="status" role="status" aria-live="polite"></p>
+<h2>浏览器没有打开 Obsidian？</h2>
+<p class="muted">确认目标知识库已启用 BRAT，然后在 BRAT 设置中选择 Add a beta plugin，填入：</p>
+<div class="repo"><code>zhangxun-ai/obsidian-social-publisher</code><button id="copy" type="button">复制仓库地址</button></div>
+<p class="muted">BRAT 自动下载插件文件，后续也可通过 BRAT 检查更新。当前尚未上架社区市场。</p>
+<div class="boundary"><p>需要桌面 Obsidian 1.14.4 及以上。安装入口只安装 Obsidian 插件；实验性 Chrome 扩展见 <a href="https://github.com/zhangxun-ai/obsidian-social-publisher/tree/main/extension">扩展说明</a>。</p><p class="muted">原生 Obsidian 加载与真实小红书上传尚未完成验证。平台草稿与直接发布未开放。</p></div>
+</main>
+<script>
+const status=document.getElementById('status');
+document.getElementById('install').addEventListener('click',()=>{status.textContent='已请求打开 Obsidian，请在 BRAT 窗口确认安装。若没有反应，请使用下方仓库地址。';});
+document.getElementById('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText('zhangxun-ai/obsidian-social-publisher');status.textContent='仓库地址已复制，请粘贴到 BRAT 的 Add a beta plugin。';}catch{status.textContent='复制未完成，请手动选择上方仓库地址。';}});
+</script>
+</body>
+</html>
