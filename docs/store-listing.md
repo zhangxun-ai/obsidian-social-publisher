@@ -1,6 +1,8 @@
 # Chrome Web Store 上架材料
 
-扩展 0.1.4 已于 2026-10-08 在用户现有开发者账号提交 Chrome 网上应用店审核。后台显示“已将您的扩展程序提交送审”和“待审核”，尚未通过审核或开放商店安装。真实条目 ID 为 `lomabfdifikkjdpkdlbpkbaeopglanna`，免费、不公开分发（知道链接即可访问），已勾选审核通过后自动发布。当前进度的单一来源为 `browser-extension-release.json`；审核通过且实际页面可安装后才改为 `published`。公开联系入口使用 [GitHub Issues](https://github.com/zhangxun-ai/obsidian-social-publisher/issues)。
+扩展 0.1.4 于 2026-10-08 提交审核，现已通过并发布。2026-10-09 在用户 Dia 浏览器的真实商店页面核实“添加至 Dia”按钮可用，版本为 0.1.4；安装状态 `browser-extension-release.json` 据此改为 `published`。真实条目 ID 为 `lomabfdifikkjdpkdlbpkbaeopglanna`，商店入口为 [Obsidian Social Publisher](https://chromewebstore.google.com/detail/obsidian-social-publisher/lomabfdifikkjdpkdlbpkbaeopglanna)。公开联系入口使用 [GitHub Issues](https://github.com/zhangxun-ai/obsidian-social-publisher/issues)。
+
+初次发布选择了 Unlisted（不公开，知道链接即可安装）。根据用户要求，2026-10-09 已将分发范围改为 Public（公开），保存并提交审核；Google 确认弹窗明确显示“之前为不公开发布，将变为公开发布”，随后显示“已将您的扩展程序提交送审”。后台当前为“待审核”，已选审核通过后自动发布。公开范围更改尚未生效，与现有版本可通过链接安装分开记录。
 
 已上传 `social-publisher-browser-0.1.4.zip`、128×128 图标、1280×800 工作台截图和 440×280 宣传图；已保存商品说明、权限用途、隐私政策及 488 字审核测试步骤。个人身份信息、身份验证信息、网络记录、网站内容四类按下文实际范围披露；未提供私人账号密码或配对码。
 
@@ -13,7 +15,7 @@
 - 主页：`https://zhangxun-ai.github.io/obsidian-social-publisher/`
 - 隐私政策：`https://zhangxun-ai.github.io/obsidian-social-publisher/privacy.html`（提交前确认已部署并可公开访问）。
 - 支持入口：`https://github.com/zhangxun-ai/obsidian-social-publisher/issues`
-- 实际分发：免费、Unlisted（不公开）、所有地区，审核通过后自动发布。Unlisted 仍需接受商店审核，不代表免审。
+- 实际分发：已发布版本为免费、Unlisted（不公开）、所有地区；改为 Public（公开）的更改于 2026-10-09 提交审核，通过后自动发布。
 
 ## 长描述（可复制到商店）
 
@@ -85,10 +87,10 @@ https://github.com/zhangxun-ai/obsidian-social-publisher
 
 审核范围说明：当前实现没有最终发布操作，也没有自动保存草稿操作。账号检测是登录后固定同源 GET；只有在已配对工作台保持打开时，才响应 Obsidian 发起的短期检测请求。后台 Service Worker 只负责打开/复用工作台，不在后台轮询或注入页面。
 
-## 审核后仍需完成
+## 验证进度与剩余验收
 
-- 等待 Google 审核结果，按实际反馈补充材料或修复；当前表单未要求上传操作视频，未制作或提交视频。
-- 审核通过后核验真实商店页面有添加按钮，再更新安装状态为 `published`。
+- 初次审核已通过，真实商店页面的添加按钮已核实；安装首页与浏览器安装页均开放添加入口。
+- 等待公开范围更改的审核结果，按实际反馈处理；当前表单未要求上传操作视频，未制作或提交视频。
 - 在 Chrome 和 Dia 分别验证商店安装、扩展工作台、Obsidian 配对及账号绑定。此前合成 MV3 验证不代表商店安装或真实平台完整验收。
 - 继续保留人工核实填写结果及最终发布的边界，不把 GitHub 源码或 ZIP 下载称作“一键添加到浏览器”。
 
@@ -98,7 +100,7 @@ https://github.com/zhangxun-ai/obsidian-social-publisher
 2. 在商品详情填写上文名称、简短描述、长描述、语言、主页及支持地址，上传交付的图标和扩展界面截图。
 3. 在隐私实践填写单一用途、各权限理由、数据处理披露和公开隐私政策 URL。逐项核对上文依据，不把本机处理勾成“没有处理数据”。
 4. 在审核者说明填写上述独立插件安装、配对、登录、账号绑定和填写测试步骤；不要填入私人账号密码或配对码。
-5. 分发选择建议使用 Unlisted，保存并检查所有页面，确认没有缺项后提交审核。Unlisted 仍需审核，通过前无法提供有效的商店安装入口。
+5. 分发保持免费、Public（公开）、所有地区，保存并检查所有页面，确认没有缺项后提交审核。公开范围更改也可能需要审核；已有版本的安装状态与待审更改分别记录。
 6. 记录后台提供的真实商店 ID、审核状态和安装 URL。审核通过且商品可访问后，再把安装入口同步到项目页面和插件。用户随后在 Dia 或 Chrome 打开商店入口，仍需自己确认浏览器的“添加扩展程序”。
 
 本次使用用户已经登录的 Dia 浏览器窗口完成上传、表单保存与提交。Chrome 扩展接口无法对商店页面注入脚本，因此通过系统可访问性界面操作正常页面控件；未绕过安全提示或身份验证。

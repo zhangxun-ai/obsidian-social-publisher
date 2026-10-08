@@ -26,7 +26,9 @@ Obsidian 1.14.4 的独立设置窗口可能承载 BRAT 安装弹窗，但外部�
 
 修改 `manifest.json` 与 `package.json` 到同一 `x.y.z` 版本；同步锁文件和 `versions.json`，新增对应 `docs/releases/x.y.z.md`。在项目根运行 `npm ci`、`npm run check`。通过后提交推送，并推送相同版本的 tag（不带 `v`）。Release 工作流会重新安装依赖、运行检查，再上传三个安装附件。main 分支和 PR 的 Check 工作流也会执行完整检查。
 
-Release 不包含个人知识库、插件 data.json、本地测试库、截图会话或缓存。Obsidian 的安装入口只安装 Obsidian 插件。浏览器扩展 0.1.4 已于 2026-10-08 提交 Chrome 网上应用店审核，条目 ID 为 `lomabfdifikkjdpkdlbpkbaeopglanna`，免费、不公开分发（知道链接即可访问），审核通过后自动发布。当前不能通过商店安装；[浏览器安装页](https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html)读取 `browser-extension-release.json`，只有人工核实已通过且商店页面可安装后才开放添加入口。
+Release 不包含个人知识库、插件 data.json、本地测试库、截图会话或缓存。Obsidian 插件与浏览器扩展分别安装。浏览器扩展 0.1.4 已通过审核并发布，条目 ID 为 `lomabfdifikkjdpkdlbpkbaeopglanna`；2026-10-09 已核实真实商店页面显示“添加至 Dia”。初次分发为免费、Unlisted（不公开，知道链接即可安装）；同日已将公开范围改为 Public（公开）并提交审核，已选审核通过后自动发布。更改尚未生效，不将待审更改记为已公开。
+
+安装首页和[浏览器安装页](https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html)共用 `browser-extension.js`，读取 `browser-extension-release.json` 的安装状态。`published` 表示已有通过审核且实际页面可安装的版本，不代表后续公开范围更改已通过。点击“添加到浏览器”进入官方商店，再由当前浏览器确认添加；Dia 和 Chrome 分别安装，无需下载或解压安装包。
 
 HTTPS 安装页由 GitHub Pages 从 main 分支的 /docs 发布；更新 docs/index.html 并推送后自动重新部署。原生验证使用 BRAT 的“添加 Beta 插件”流程，最后的版本选择与安装确认由用户完成；自动化浏览器对 obsidian:// 的跳转拦截未绕过。
 
