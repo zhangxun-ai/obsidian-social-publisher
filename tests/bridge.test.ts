@@ -18,7 +18,7 @@ const rawHostStatus = (port: number, host: string, token: string) => new Promise
   request.end('{}');
 });
 const makeJob = (id = 'task_1'): BridgeJob => ({
-  id, title: '合成标题', account: '合成账号', text: '第一行\n\n第二行 #测试话题',
+  id, title: '合成标题', account: '合成账号', accountId: 'synthetic-account', text: '第一行\n\n第二行 #测试话题',
   topics: ['测试话题'], originality: '未确认', images: [
     { name: '封面.png', mime: 'image/png', data: Buffer.from('synthetic-cover') },
     { name: '02.png', mime: 'image/png', data: Buffer.from('synthetic-second') },
@@ -30,8 +30,9 @@ async function fixture(overrides: Partial<BridgeProvider> = {}) {
   const reports: unknown[][] = [];
   let validations = 0;
   const bridge = new LocalBridge({
-    listJobs: () => [{ id: source.id, title: source.title, account: source.account, imageCount: source.images.length,
+    listJobs: () => [{ id: source.id, title: source.title, account: source.account, accountId: source.accountId, imageCount: source.images.length,
       text: 'must-not-leak', path: '/private/must-not-leak' }],
+    validateAccount: (_id, accountId) => { if (accountId !== source.accountId) throw new Error('wrong account'); },
     claimJob: (id) => ({ ...source, id }), validateJob: () => { validations += 1; },
     report: (...args) => { reports.push(args); }, ...overrides,
   });
@@ -48,7 +49,7 @@ async function fixture(overrides: Partial<BridgeProvider> = {}) {
 }
 
 test('bridge is opt-in, pairs one extension, rejects web origins, wrong tokens and host rebinding', async (t) => {
-  const dormant = new LocalBridge({ listJobs: () => [], claimJob: () => makeJob(), validateJob: () => {}, report: () => {} });
+  const dormant = new LocalBridge({ listJobs: () => [], claimJob: () => makeJob(), validateAccount: () => {}, validateJob: () => {}, report: () => {} });
   assert.equal(dormant.running, false);
   assert.equal(dormant.token, '');
   assert.equal(dormant.port, null);
@@ -80,10 +81,10 @@ test('API rejects oversized, unknown, non-JSON and unsupported requests', async 
   const f = await fixture();
   t.after(() => f.bridge.stop());
   await f.pair();
-  assert.equal((await f.call('/claim', { taskId: 'a'.repeat(5000) })).status, 413);
-  assert.equal((await f.call('/claim', { taskId: 'task_1' }, { 'Content-Type': 'text/plain' })).status, 415);
-  assert.equal((await f.call('/claim', { taskId: '../private' })).status, 400);
-  assert.equal((await f.call('/claim', { taskId: 'task_1', file: '/private/secret' })).status, 400);
+  assert.equal((await f.call('/claim', { taskId: 'a'.repeat(5000), accountId: 'synthetic-account' })).status, 413);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' }, { 'Content-Type': 'text/plain' })).status, 415);
+  assert.equal((await f.call('/claim', { taskId: '../private', accountId: 'synthetic-account' })).status, 400);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', file: '/private/secret', accountId: 'synthetic-account' })).status, 400);
   assert.equal((await f.call('/files/private')).status, 404);
   assert.equal((await f.call('/status?file=private')).status, 400);
   assert.equal((await f.call('/status', {}, {}, 'PUT')).status, 405);
@@ -102,7 +103,7 @@ test('MV3 POST reads retain strict Origin validation and never accept a browser-
   assert.equal((await f.call('/status', {})).status, 200);
   assert.equal((await f.call('/jobs', {})).status, 200);
   assert.equal((await f.call('/jobs', { path: '/private/file' })).status, 400);
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 200);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 200);
   assert.equal(await (await f.call('/media/task_1/0', {})).text(), 'synthetic-cover');
   assert.equal((await fetch(`http://127.0.0.1:${f.port}/jobs`, { method: 'POST', headers: {
     Authorization: `Bearer ${f.bridge.token}`, 'Content-Type': 'application/json', 'X-Extension-Origin': ORIGIN,
@@ -117,9 +118,9 @@ test('metadata does not expose content; claim and media use frozen selected byte
   t.after(() => f.bridge.stop());
   await f.pair();
   const metadata = await (await f.call('/jobs')).json();
-  assert.deepEqual(Object.keys(metadata.jobs[0]).sort(), ['account', 'id', 'imageCount', 'title']);
+  assert.deepEqual(Object.keys(metadata.jobs[0]).sort(), ['account', 'accountId', 'id', 'imageCount', 'title']);
   assert.equal((await f.call('/media/task_1/0')).status, 409);
-  const claimed = await f.call('/claim', { taskId: 'task_1' });
+  const claimed = await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' });
   assert.equal(claimed.status, 200);
   const job = await claimed.json();
   assert.deepEqual(job.images.map((image: { name: string }) => image.name), ['封面.png', '02.png']);
@@ -135,7 +136,7 @@ test('metadata does not expose content; claim and media use frozen selected byte
   const stale = await f.call(job.images[0].url);
   assert.equal(stale.status, 409);
   assert.equal((await stale.text()).includes('/private/source'), false);
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 409);
   assert.deepEqual((await (await f.call('/jobs')).json()).jobs, []);
 });
 
@@ -148,29 +149,29 @@ test('changed sources block an initial claim before it can be consumed', async (
   });
   t.after(() => f.bridge.stop());
   await f.pair();
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 409);
   assert.equal(calls, 0);
   valid = true;
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 200);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 200);
 });
 
 test('claims are serial, one-time, and result statuses cannot impersonate published', async (t) => {
   const f = await fixture();
   t.after(() => f.bridge.stop());
   await f.pair();
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 200);
-  assert.equal((await f.call('/claim', { taskId: 'task_2' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 200);
+  assert.equal((await f.call('/claim', { taskId: 'task_2', accountId: 'synthetic-account' })).status, 409);
   assert.equal((await f.call('/result', { taskId: 'task_1', status: '已发布', detail: 'fake' })).status, 400);
   assert.equal((await f.call('/result', { taskId: 'task_2', status: '待人工确认', detail: '' })).status, 409);
   assert.equal((await f.call('/result', { taskId: 'task_1', status: '结果待核实', detail: '合成结果' })).status, 200);
   assert.deepEqual(f.reports, [['task_1', '结果待核实', '合成结果']]);
   assert.equal((await f.call('/result', { taskId: 'task_1', status: '失败', detail: '' })).status, 409);
   assert.equal((await f.call('/media/task_1/0')).status, 409);
-  assert.equal((await f.call('/claim', { taskId: 'task_2' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_2', accountId: 'synthetic-account' })).status, 409);
   assert.equal(f.bridge.acknowledge('wrong'), false);
   assert.equal(f.bridge.acknowledge('task_1'), true);
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 409);
-  assert.equal((await f.call('/claim', { taskId: 'task_2' })).status, 200);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_2', accountId: 'synthetic-account' })).status, 200);
 });
 
 test('simultaneous claim requests produce exactly one provider call', async (t) => {
@@ -181,7 +182,7 @@ test('simultaneous claim requests produce exactly one provider call', async (t) 
   });
   t.after(() => f.bridge.stop());
   await f.pair();
-  const results = await Promise.all([f.call('/claim', { taskId: 'task_1' }), f.call('/claim', { taskId: 'task_2' })]);
+  const results = await Promise.all([f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' }), f.call('/claim', { taskId: 'task_2', accountId: 'synthetic-account' })]);
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
   assert.equal(calls, 1);
 });
@@ -190,7 +191,7 @@ test('restarting rotates token, discards media, and never makes a consumed task 
   const f = await fixture();
   t.after(() => f.bridge.stop());
   await f.pair();
-  await f.call('/claim', { taskId: 'task_1' });
+  await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' });
   const oldToken = f.bridge.token;
   await f.bridge.stop();
   assert.equal(f.bridge.token, '');
@@ -202,7 +203,7 @@ test('restarting rotates token, discards media, and never makes a consumed task 
   assert.equal((await f.call('/media/task_1/0')).status, 409);
   assert.equal((await (await f.call('/status')).json()).activeTaskId, 'task_1');
   assert.equal(f.bridge.acknowledge('task_1'), true);
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 409);
 });
 
 test('a disconnected in-flight claim cannot restore media into a restarted session', async (t) => {
@@ -211,7 +212,7 @@ test('a disconnected in-flight claim cannot restore media into a restarted sessi
   const f = await fixture({ claimJob: async (id) => { await gate; return makeJob(id); } });
   t.after(() => f.bridge.stop());
   await f.pair();
-  const interrupted = f.call('/claim', { taskId: 'task_1' }).catch(() => null);
+  const interrupted = f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' }).catch(() => null);
   for (let n = 0; n < 20; n += 1) {
     if ((await (await f.call('/status')).json()).activeTaskId) break;
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -224,7 +225,7 @@ test('a disconnected in-flight claim cannot restore media into a restarted sessi
   await new Promise((resolve) => setTimeout(resolve, 5));
   assert.equal((await f.call('/media/task_1/0')).status, 409);
   assert.equal(f.bridge.acknowledge('task_1'), true);
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 409);
 });
 
 test('provider failure after claim is not retryable and does not leak private errors', async (t) => {
@@ -232,10 +233,10 @@ test('provider failure after claim is not retryable and does not leak private er
   const f = await fixture({ claimJob: () => { calls += 1; throw new Error('/private/note.md'); } });
   t.after(() => f.bridge.stop());
   await f.pair();
-  const failed = await f.call('/claim', { taskId: 'task_1' });
+  const failed = await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' });
   assert.equal(failed.status, 409);
   assert.equal((await failed.text()).includes('/private/note.md'), false);
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 409);
   assert.equal(calls, 1);
 });
 
@@ -245,12 +246,12 @@ test('media caps and MIME checks reject invalid prepared payloads without exposi
   const f = await fixture({ claimJob: () => oversized });
   t.after(() => f.bridge.stop());
   await f.pair();
-  assert.equal((await f.call('/claim', { taskId: 'task_1' })).status, 409);
+  assert.equal((await f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 409);
   assert.equal((await f.call('/media/task_1/0')).status, 409);
   const wrongMime = await fixture({ claimJob: () => ({ ...makeJob(), images: [{ name: 'file.html', mime: 'text/html', data: Buffer.from('<script>') }] }) });
   t.after(() => wrongMime.bridge.stop());
   await wrongMime.pair();
-  assert.equal((await wrongMime.call('/claim', { taskId: 'task_1' })).status, 409);
+  assert.equal((await wrongMime.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' })).status, 409);
 });
 
 test('manual acknowledgement cannot release a claim or result callback still in flight', async (t) => {
@@ -261,7 +262,7 @@ test('manual acknowledgement cannot release a claim or result callback still in 
   const f = await fixture({ claimJob: async (id) => { await claimGate; return makeJob(id); }, report: () => reportGate });
   t.after(() => f.bridge.stop());
   await f.pair();
-  const pending = f.call('/claim', { taskId: 'task_1' });
+  const pending = f.call('/claim', { taskId: 'task_1', accountId: 'synthetic-account' });
   for (let n = 0; n < 20; n += 1) {
     if ((await (await f.call('/status')).json()).activeTaskId) break;
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -277,15 +278,19 @@ test('manual acknowledgement cannot release a claim or result callback still in 
   assert.equal(f.bridge.acknowledge('task_1'), true);
 });
 
+const accountSource = readFileSync(resolve('extension/account.js'), 'utf8');
 const adapterSource = readFileSync(resolve('extension/adapter.js'), 'utf8');
 
-test('extension has no persistent injection, cookies, remote messaging or broad host permissions', () => {
+test('extension has no persistent injection, cookies, remote messaging or broad host permissions; worker only opens its workspace', () => {
   const manifest = JSON.parse(readFileSync(resolve('extension/manifest.json'), 'utf8'));
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ['activeTab', 'scripting', 'storage']);
   assert.deepEqual(manifest.host_permissions, ['http://127.0.0.1/*', 'https://creator.xiaohongshu.com/*']);
   assert.equal(manifest.content_scripts, undefined);
-  assert.equal(manifest.background, undefined);
+  assert.deepEqual(manifest.background, {service_worker: 'background.js'});
+  const worker = readFileSync(resolve('extension/background.js'), 'utf8');
+  assert.ok(worker.includes('chrome.action.onClicked'));
+  assert.equal(/executeScript|setInterval|fetch\(|chrome\.cookies|chrome\.alarms/.test(worker), false);
   assert.equal(manifest.externally_connectable, undefined);
 });
 
@@ -294,12 +299,17 @@ function page(html = '', url = 'https://creator.xiaohongshu.com/publish/publish'
   const dom = new JSDOM(`<input type="file" accept="image/*" multiple><input placeholder="填写标题"><div class="tiptap ProseMirror" contenteditable="true"></div><button id="publish">发布</button><button id="draft">存草稿</button><input id="original" type="checkbox">${html}`, { url, runScripts: 'outside-only' });
   // This test uses an in-memory synthetic document, not a browser or a platform account.
   const window = dom.window;
+  // Synthetic official read-only API fixture; no real platform account or session is used.
+  window.fetch = async () => ({ok: true, status: 200, redirected: false,
+    url: 'https://creator.xiaohongshu.com/api/galaxy/user/info',
+    json: async () => ({success: true, code: 0, data: {userId: '0123456789abcdef01234567', userName: '合成测试账号'}})});
   let assigned: unknown[] = [];
   Object.defineProperty(window.document.querySelector('input[type=file]'), 'files', { get: () => assigned, set: (value) => { assigned = value; } });
   window.DataTransfer = class {
     files: unknown[] = [];
     items = { add: (file: unknown) => { this.files.push(file); } };
   };
+  window.eval(accountSource);
   window.eval(adapterSource);
   return { window, adapter: window.ObsidianSocialPublisherAdapter, close: () => window.close() };
 }
@@ -310,7 +320,7 @@ test('synthetic DOM: empty editor receives exact text and ordered files without 
   let clicks = 0;
   for (const id of ['publish', 'draft', 'original']) p.window.document.getElementById(id).addEventListener('click', () => { clicks += 1; });
   assert.equal(p.adapter.inspect().ready, true);
-  const result = await p.adapter.fill({ title: '原样标题', text: '第一行\n\n特殊 <b>文本</b> #候选', images: [
+  const result = await p.adapter.fill({ accountId: '0123456789abcdef01234567', title: '原样标题', text: '第一行\n\n特殊 <b>文本</b> #候选', images: [
     { name: '封面.png', mime: 'image/png', base64: Buffer.from('cover').toString('base64') },
     { name: '01.png', mime: 'image/png', base64: Buffer.from('second').toString('base64') },
   ] });
@@ -336,7 +346,7 @@ test('synthetic DOM: existing text or media and non-official pages block before 
     t.after(p.close);
     content.change(p);
     assert.equal(p.adapter.inspect().ready, false);
-    const result = await p.adapter.fill({ title: 'new', text: 'new', images: [{ name: 'a.png', mime: 'image/png', base64: 'YQ==' }] });
+    const result = await p.adapter.fill({ accountId: '0123456789abcdef01234567', title: 'new', text: 'new', images: [{ name: 'a.png', mime: 'image/png', base64: 'YQ==' }] });
     assert.equal(result.status, '失败');
     assert.equal(p.window.document.querySelector('input[type=file]').files.length, 0);
   }
@@ -356,14 +366,47 @@ test('synthetic DOM: uncertain or changed controls fail safely and never claim s
   t.after(noMultiple.close);
   noMultiple.window.document.querySelector('input[type=file]').multiple = false;
   const image = { name: 'a.png', mime: 'image/png', base64: 'YQ==' };
-  assert.equal((await noMultiple.adapter.fill({ title: 't', text: 'b', images: [image, image] })).status, '失败');
+  assert.equal((await noMultiple.adapter.fill({ accountId: '0123456789abcdef01234567', title: 't', text: 'b', images: [image, image] })).status, '失败');
   assert.equal(noMultiple.window.document.querySelector('input[type=file]').files.length, 0);
   const changed = page();
   t.after(changed.close);
   changed.window.document.querySelector('input[type=file]').addEventListener('change', () => {
     changed.window.document.querySelector('input[placeholder]').value = '网页自己的已有内容';
   });
-  const result = await changed.adapter.fill({ title: 't', text: 'b', images: [image] });
+  const result = await changed.adapter.fill({ accountId: '0123456789abcdef01234567', title: 't', text: 'b', images: [image] });
   assert.equal(result.status, '结果待核实');
   assert.equal(changed.window.document.querySelector('input[placeholder]').value, '网页自己的已有内容');
+});
+
+test('account reports require the paired extension, a current one-time nonce, and only public metadata', async (t) => {
+  let pending = {requestId: 'detect-one', platform: 'xiaohongshu' as const, expiresAt: Date.now() + 60_000};
+  const reports: unknown[] = [];
+  let consumed = false;
+  const f = await fixture({accountRequest: () => consumed ? null : pending, reportAccount: report => { reports.push(report); consumed = true; }});
+  t.after(() => f.bridge.stop());
+  assert.equal((await f.call('/account-request', {})).status, 403);
+  await f.pair();
+  assert.deepEqual(await (await f.call('/account-request', {})).json(), {request: pending});
+  assert.equal((await f.call('/account-request', {cookie: 'rejected'})).status, 400);
+  assert.equal((await f.call('/account-result', {requestId: 'wrong', status: 'recognized', accountId: '123', nickname: '公开昵称'})).status, 409);
+  assert.equal((await f.call('/account-result', {requestId: 'detect-one', status: 'recognized', accountId: '123', nickname: '公开昵称', cookie: 'rejected'})).status, 400);
+  assert.equal((await f.call('/account-result', {requestId: 'detect-one', status: 'recognized', accountId: '../private', nickname: '公开昵称'})).status, 400);
+  assert.equal((await f.call('/account-result', {requestId: 'detect-one', status: 'unknown', accountId: '123'})).status, 400);
+  pending = {...pending, expiresAt: Date.now() - 1};
+  assert.equal((await f.call('/account-result', {requestId: 'detect-one', status: 'logged-out'})).status, 409);
+  pending = {...pending, expiresAt: Date.now() + 60_000};
+  assert.equal((await f.call('/account-result', {requestId: 'detect-one', status: 'recognized', accountId: '123', nickname: ' 公开昵称 '})).status, 200);
+  assert.deepEqual(reports, [{requestId: 'detect-one', status: 'recognized', accountId: '123', nickname: '公开昵称'}]);
+  assert.equal((await f.call('/account-result', {requestId: 'detect-one', status: 'logged-out'})).status, 409);
+  assert.deepEqual(await (await f.call('/account-request', {})).json(), {request: null});
+});
+
+test('a mismatched or missing actual account cannot consume a prepared task', async (t) => {
+  const f = await fixture();
+  t.after(() => f.bridge.stop());
+  await f.pair();
+  assert.equal((await f.call('/claim', {taskId: 'task_1'})).status, 400);
+  assert.equal((await f.call('/claim', {taskId: 'task_1', accountId: 'another-account'})).status, 409);
+  assert.equal((await (await f.call('/status')).json()).activeTaskId, null);
+  assert.equal((await f.call('/claim', {taskId: 'task_1', accountId: 'synthetic-account'})).status, 200);
 });

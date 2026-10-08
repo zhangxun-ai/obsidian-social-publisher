@@ -1,5 +1,24 @@
 import type { Issue, Publication } from './types';
 
+/** Public profile metadata only; authentication stays in the official browser. */
+export interface PlatformAccount {
+  platform: 'xiaohongshu';
+  accountId: string;
+  nickname: string;
+  checkedAt: number;
+}
+export interface AccountDetection {
+  requestId: string;
+  status: 'waiting' | 'recognized' | 'logged-out' | 'unknown';
+  account?: PlatformAccount;
+  checkedAt: number;
+}
+export interface AccountState {
+  binding: PlatformAccount | null;
+  detection: AccountDetection | null;
+  connected: boolean;
+  paired: boolean;
+}
 export interface PublisherSettings {
   configured: boolean;
   roots: string[];
@@ -22,6 +41,7 @@ export interface RunRecord {
   path: string;
   title: string;
   account: string;
+  accountId?: string;
   imageCount: number;
   fingerprint: string;
   createdAt: number;
@@ -33,6 +53,10 @@ export interface RunRecord {
 export interface PublisherHost {
   settings: PublisherSettings;
   demo?: boolean;
+  accountState(): AccountState;
+  requestAccountDetection(): Promise<void>;
+  bindAccount(requestId: string): Promise<void>;
+  unbindAccount(): Promise<void>;
   list(): Promise<Publication[]>;
   save(publication: Publication): Promise<Publication>;
   create(title: string): Promise<Publication>;

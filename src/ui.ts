@@ -2,7 +2,12 @@ import { extractBody, listSections, moveImage, selectedInFilter, toPlatformText,
 import type { Issue, Publication } from './types';
 import type { Preview, PublisherHost } from './host';
 
-type Screen = 'works' | 'editor' | 'preview' | 'records' | 'settings' | 'create' | 'import' | 'confirm';
+type Screen = 'works' | 'editor' | 'preview' | 'records' | 'accounts' | 'settings' | 'create' | 'import' | 'confirm';
+export interface PublisherRuntime {
+  version: string;
+  openLogin(): void;
+  checkForUpdates(): Promise<void>;
+}
 type Child = Node | string | undefined | null;
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', ...children: Child[]): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.className = className;
@@ -48,7 +53,7 @@ function badge(text: string): HTMLElement {
  * THESIS: Obsidian 内完成准确的图文准备，选择、图序与预览在同一工作台可核对。
  * OWN-WORLD: 继承宿主浅/深色主题，细分隔线、紧凑表格、少量紫色强调。
  * STORY: 发现稿件 → 明确正文 → 关联素材 → 预览确认 → 本地准备 → 官方页面核对。
- * FIRST VIEWPORT: 顶部三个导航，左侧作品表格与底部选择栏，右侧封面和正文预览。
+ * FIRST VIEWPORT: 顶部四个导航，左侧作品表格与底部选择栏，右侧封面和正文预览。
  * FORM: 用户已确认 UI/02-workspace.png 和 UI/03-editor.png，不重新选择视觉方向。
  */
 export class PublisherUI {
@@ -69,8 +74,9 @@ export class PublisherUI {
   private unsubscribe: () => void;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private revision = 0;
+  private accountTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(private root: HTMLElement, private host: PublisherHost) {
+  constructor(private root: HTMLElement, private host: PublisherHost, private runtime?: PublisherRuntime) {
     root.classList.add('sp-app');
     this.unsubscribe = host.subscribe(() => this.requestRefresh());
   }
@@ -79,7 +85,7 @@ export class PublisherUI {
     clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => { void this.reload(false); }, 180);
   }
-  destroy(): void { this.unsubscribe(); clearTimeout(this.refreshTimer); this.root.replaceChildren(); }
+  destroy(): void { this.unsubscribe(); clearTimeout(this.refreshTimer); clearTimeout(this.accountTimer); this.root.replaceChildren(); }
   async reload(render = true): Promise<void> {
     try {
       this.publications = await this.host.list();
@@ -95,7 +101,7 @@ export class PublisherUI {
         const next = await this.host.inspect(this.preview.publication.path);
         if (next.fingerprint !== this.preview.fingerprint) { this.previewExpired = true; this.error = '源内容或图片已变化，此前预览已过期。请重新打开预览。'; this.approvals.delete(next.publication.path); changedPreview = true; }
       }
-      if (render || changedPreview || ['works', 'records', 'confirm'].includes(this.screen)) this.render();
+      if (render || changedPreview || ['works', 'records', 'confirm', 'accounts'].includes(this.screen)) this.render();
     } catch (error) { if(this.screen==='preview')this.previewExpired=true;this.error = (error as Error).message; this.render(); }
   }
   private async run(action: () => Promise<void>): Promise<void> {
@@ -122,10 +128,15 @@ export class PublisherUI {
   private get chosen(): Publication[] { return selectedInFilter(this.visible, this.selected); }
   private render(): void {
     this.revision += 1;
+    clearTimeout(this.accountTimer);
+    if (this.screen === 'accounts') {
+      const checkedAt = this.host.accountState?.().detection?.checkedAt;
+      if (checkedAt && Date.now() < checkedAt + 120_000) this.accountTimer = setTimeout(() => this.render(), checkedAt + 120_001 - Date.now());
+    }
     const top = el('header', 'sp-top', el('strong', 'sp-brand', 'Social Publisher'));
     const nav = el('nav', 'sp-nav'); nav.setAttribute('aria-label', 'Social Publisher');
-    for (const [key, label] of [['works', '作品'], ['records', '填写任务记录'], ['settings', '设置']] as const) {
-      const active = key === 'works' ? !['records', 'settings'].includes(this.screen) : this.screen === key;
+    for (const [key, label] of [['works', '作品'], ['records', '填写任务记录'], ['accounts', '平台与账号'], ['settings', '设置']] as const) {
+      const active = key === 'works' ? !['records', 'accounts', 'settings'].includes(this.screen) : this.screen === key;
       const b = button(label, () => this.go(key), active ? 'sp-nav-active' : '');
       if (active) b.setAttribute('aria-current', 'page'); nav.append(b);
     }
@@ -136,7 +147,7 @@ export class PublisherUI {
       const banner = el('div', 'sp-error', el('span', '', this.error), button('关闭提示', () => {this.error = ''; this.render();}, 'sp-text'));
       banner.setAttribute('role', 'alert'); main.append(banner);
     }
-    if (!this.host.settings.configured && this.screen !== 'settings') this.onboard(main);
+    if (!this.host.settings.configured && !['settings', 'accounts'].includes(this.screen)) this.onboard(main);
     else if (this.screen === 'works') this.works(main);
     else if (this.screen === 'editor') this.editor(main);
     else if (this.screen === 'preview') this.fullPreview(main);
@@ -144,6 +155,7 @@ export class PublisherUI {
     else if (this.screen === 'import') this.importNotes(main);
     else if (this.screen === 'confirm') this.confirmBatch(main);
     else if (this.screen === 'records') this.records(main);
+    else if (this.screen === 'accounts') this.accounts(main);
     else this.settings(main);
     if (this.busy) {
       main.querySelectorAll<HTMLButtonElement>('button').forEach(b => b.disabled = true);
@@ -156,10 +168,10 @@ export class PublisherUI {
   private onboard(main: HTMLElement): void {
     this.heading(main, '选择要管理的发布内容', '使用已有笔记，或为新作品创建独立文件夹。');
     const form = el('form', 'sp-onboard sp-panel');
-    let roots = this.host.settings.roots.join('\n'); let account = this.host.settings.defaultAccount;
+    let roots = this.host.settings.roots.join('\n');
     const dirs = el('textarea', 'sp-input'); dirs.value = roots; dirs.rows = 3; dirs.setAttribute('aria-label', '发布内容目录'); dirs.oninput = () => roots = dirs.value;
-    form.append(el('h2', '', '选择发布内容目录'), field('相对于当前知识库的路径', dirs, '每行一个目录；只扫描这里的 Markdown，不扫描整个 02-项目。'), field('默认发布账号（可稍后填写）', input(account, '默认发布账号', v => account = v), '仅用于本地核对，不表示已登录。'), el('p', 'sp-note', '文案和图片保存在本地。准备完成后，你可以在官方编辑器核对并发布。'));
-    const start = button('打开作品工作台', () => this.run(async () => { await this.host.saveSettings({...this.host.settings, roots: roots.split('\n').map(s => s.trim()).filter(Boolean), defaultAccount: account}); await this.reload(false); }), 'sp-primary');
+    form.append(el('h2', '', '选择发布内容目录'), field('相对于当前知识库的路径', dirs, '每行一个目录；只扫描这里的 Markdown，不扫描整个 02-项目。'), field('发布平台', select('xiaohongshu', '发布平台', [['xiaohongshu', '小红书']], () => {}), '在「平台与账号」中登录并绑定账号。'), el('p', 'sp-note', '文案和图片保存在本地。准备完成后，你可以在官方编辑器核对并发布。'));
+    const start = button('打开作品工作台', () => this.run(async () => { await this.host.saveSettings({...this.host.settings, roots: roots.split('\n').map(s => s.trim()).filter(Boolean)}); await this.reload(false); }), 'sp-primary');
     form.append(start); form.onsubmit = event => {event.preventDefault(); start.click();}; main.append(form);
   }
   private works(main: HTMLElement): void {
@@ -241,7 +253,7 @@ export class PublisherUI {
     fields.append(field('发布正文', body, '保留换行；完整预览会展示转换后的实际填写文本。'));
     const topics = input(draft.topics.join('，'), '小红书话题', value => draft.topics = [...new Set(value.split(/[,，\n#]+/).map(s => s.trim()).filter(Boolean))]);
     fields.append(field('小红书话题', topics, '用逗号分隔。候选文字，需在官方编辑器确认话题关联。'));
-    const settings = el('div', 'sp-field-row', field('发布账号', input(draft.account, '发布账号', value => draft.account = value)), field('原创声明', select(draft.originality, '原创声明', [['未确认','未确认'], ['声明原创','声明原创'], ['不声明','不声明']], value => draft.originality = value as Publication['originality'])));
+    const settings = el('div', 'sp-field-row', this.accountPicker(draft), field('原创声明', select(draft.originality, '原创声明', [['未确认','未确认'], ['声明原创','声明原创'], ['不声明','不声明']], value => draft.originality = value as Publication['originality'])));
     const statusOptions: Array<[string,string]> = [['草稿','草稿'],['待发布','待发布']];
     if (!statusOptions.some(([value])=>value===draft.status)) statusOptions.push([draft.status, `${draft.status}（原记录）`]);
     fields.append(settings, field('稿件状态', select(draft.status, '稿件状态', statusOptions, value => draft.status = value), '本地状态，不表示平台结果。'));
@@ -321,15 +333,83 @@ export class PublisherUI {
     }
     main.append(panel,el('p','sp-muted','浏览器辅助填写为实验功能。完成填写不等于保存草稿或发布成功；平台草稿与直接发布尚未开放。'));
   }
+  private accountPicker(draft?: Publication): HTMLElement {
+    const binding = this.host.accountState?.().binding;
+    const options: Array<[string, string]> = [['', binding ? '请选择已绑定账号' : '请先登录并绑定账号']];
+    if (binding) options.push([binding.accountId, `${binding.nickname} · ${binding.accountId}`]);
+    const picker = select(draft?.accountId || (!draft && binding?.accountId) || '', '发布账号', options, value => {
+      if (draft) { draft.accountId = value || undefined; draft.account = value && binding ? binding.nickname : ''; }
+    });
+    picker.disabled = !binding;
+    const container = field('发布账号', picker, '填写前再次核对当前账号，避免发错账号。');
+    if (draft?.account && !draft.accountId) container.append(el('span', 'sp-muted', `原账号备注：${draft.account}（尚未绑定，请重新选择账号）`));
+    if (draft?.accountId && draft.accountId !== binding?.accountId) container.append(el('span', 'sp-muted', `原绑定账号 ${draft.accountId} 当前不可用，保存正文会保留此记录；填写前需重新选择账号。`), button('清除原账号设置', () => { draft.accountId = undefined; draft.account = ''; this.render(); }, 'sp-text'));
+    if (!binding && draft) container.append(button('前往登录并绑定账号', () => this.go('accounts'), 'sp-text'));
+    return container;
+  }
+  private accountConnection(): HTMLElement {
+    const connection = this.host.connection();
+    const details = el('details', 'sp-account-connection');
+    details.append(el('summary', '', connection.paired ? '浏览器扩展已连接' : '首次使用：连接浏览器扩展'));
+    details.append(el('p', 'sp-muted', '在同一个浏览器安装配套扩展。开启本地连接后，将端口和本次配对码填入扩展。点击扩展图标打开浏览器工作台标签页，配对后保持该标签页打开。'));
+    if (connection.running) {
+      const token = input(connection.token, '账号检测配对码', () => {}, 'password'); token.readOnly = true; token.autocomplete = 'off';
+      details.append(field('本地连接端口', el('span', '', String(connection.port))), field('本次配对码', token), button('复制配对码', () => this.copy(connection.token)));
+    } else details.append(button('开启本地连接', () => this.run(() => this.host.connect()), 'sp-primary', !!this.host.demo));
+    details.append(button('查看扩展安装说明', () => window.open('https://github.com/zhangxun-ai/obsidian-social-publisher/tree/main/extension', '_blank'), 'sp-text'));
+    return details;
+  }
+  private accounts(main: HTMLElement): void {
+    this.heading(main, '平台与账号', '登录官方平台，核对后绑定到当前知识库。');
+    const state = this.host.accountState?.();
+    const binding = state?.binding;
+    const detection = state?.detection;
+    const detected = detection?.status === 'recognized' ? detection.account : undefined;
+    const fresh = !!detection && Date.now() - detection.checkedAt < 120_000;
+    const matching = fresh && detected && binding?.accountId === detected.accountId;
+    let loginStatus = '尚未检测';
+    if (!state?.paired) loginStatus = '浏览器未连接';
+    else if (detection?.status === 'waiting') loginStatus = '等待检测';
+    else if (detection?.status === 'logged-out') loginStatus = binding ? '登录已失效' : '未登录';
+    else if (detection?.status === 'unknown') loginStatus = '无法识别账号';
+    else if (matching) loginStatus = '已核对账号';
+    else if (fresh && detected) loginStatus = binding ? '账号与绑定不一致' : '已识别，等待绑定';
+    const summary = el('section', 'sp-account-summary');
+    for (const [label, value] of [['发布平台', '小红书'], ['当前账号', binding ? `${binding.nickname} · ${binding.accountId}` : '尚未绑定账号'], ['登录状态', loginStatus]]) {
+      summary.append(el('div', '', el('span', 'sp-muted', label), el('strong', '', value)));
+    }
+    summary.append(button(binding ? '重新登录小红书' : '登录小红书账号', () => this.runtime?.openLogin(), 'sp-primary', !this.runtime));
+    const layout = el('div', 'sp-account-grid');
+    const login = el('section', 'sp-panel'); login.append(el('h2', '', '登录并绑定账号'));
+    const steps = el('ol', 'sp-login-steps');
+    for (const text of ['打开官方登录页', '在浏览器中完成登录', '检测并核对账号']) steps.append(el('li', '', text));
+    login.append(steps, el('p', 'sp-muted', '登录完成后，确认昵称和账号标识，再绑定到此知识库。'), el('div', 'sp-actions sp-account-actions',
+      button('打开小红书登录页', () => this.runtime?.openLogin(), '', !this.runtime),
+      button('检测登录状态', () => this.run(async () => { await this.host.requestAccountDetection!(); }), 'sp-primary', !state?.paired || !this.host.requestAccountDetection || detection?.status === 'waiting')));
+    const feedback = el('div', 'sp-account-feedback'); feedback.setAttribute('role', 'status');
+    if (fresh && detected) {
+      feedback.append(el('strong', '', `${detected.nickname} · ${detected.accountId}`), el('p', 'sp-muted', `检测时间：${new Date(detection!.checkedAt).toLocaleTimeString('zh-CN')}`));
+      if (!matching) feedback.append(el('p', '', binding ? '浏览器当前账号与已绑定账号不同。核对后，可更换当前知识库的绑定账号。' : '请确认这是你要用于发布的小红书账号。'), button(binding ? '确认更换绑定账号' : '确认并绑定此账号', () => this.run(async () => { await this.host.bindAccount!(detection!.requestId); this.host.notify('已绑定账号。填写前会再次核对浏览器当前账号。'); }), 'sp-primary'));
+      else feedback.append(el('p', '', '当前账号与此知识库绑定的账号一致。'));
+    } else feedback.append(el('p', '', detection?.status === 'waiting' ? '等待浏览器检测，请保持小红书页面和浏览器工作台标签页打开。' : detection?.status === 'logged-out' ? '当前未登录，请在官方页面登录后重新检测。' : detection?.status === 'unknown' ? '未能识别公开账号标识。请确认官方页面已登录，刷新页面后重新检测。' : detection && !fresh ? '检测结果已过期，请重新检测。' : '尚未检测到登录账号。'));
+    login.append(feedback, el('p', 'sp-muted', '登录状态保存在浏览器中，插件不保存账号密码。'), this.accountConnection());
+    const usage = el('section', 'sp-panel'); usage.append(el('h2', '', '发布时使用哪个账号'), field('发布平台', select('xiaohongshu', '发布时的平台', [['xiaohongshu', '小红书']], () => {})), this.accountPicker(), el('p', 'sp-note', '每篇作品在编辑时选择已绑定账号。浏览器切换账号后，需要重新检测和核对。'));
+    if (binding) usage.append(button('解除当前知识库的账号绑定', () => this.run(async () => { await this.host.unbindAccount!(); this.host.notify('已解除本地绑定，浏览器登录状态未改变。'); }), 'sp-text'));
+    layout.append(login, usage); main.append(summary, layout, this.updatePanel());
+  }
+  private updatePanel(): HTMLElement {
+    return el('section', 'sp-update-row', el('div', 'sp-grow', el('h2', '', '插件更新'), el('p', 'sp-muted', `当前版本 ${this.runtime?.version || '未知'} · 通过 BRAT 更新，无需卸载重装。`), el('p', 'sp-muted', '点击后，在 BRAT 列表选择 Social Publisher 仓库，再选择最新版本。')),
+      button('检查更新', () => this.run(async () => { await this.runtime!.checkForUpdates(); }), '', !this.runtime));
+  }
   private settings(main:HTMLElement):void{
     this.heading(main,'设置','内容留在知识库，发布动作由你确认。');const layout=el('div','sp-settings-grid');const local=el('section','sp-panel');local.append(el('h2','','本地内容'));
-    let roots=this.host.settings.roots.join('\n');let account=this.host.settings.defaultAccount;let port=this.host.settings.port;
+    let roots=this.host.settings.roots.join('\n');let port=this.host.settings.port;
     const dirs=el('textarea','sp-input');dirs.value=roots;dirs.rows=4;dirs.setAttribute('aria-label','内容目录');dirs.oninput=()=>roots=dirs.value;
-    local.append(field('内容目录（每行一个）',dirs,'相对于当前知识库。新增目录后保存，已有笔记保持原位。'),field('默认账号',input(account,'默认账号',value=>account=value),'本地核对标识，不保存登录信息。'),field('本地连接端口',input(String(port),'本地连接端口',value=>port=Number(value),'number')),button('保存设置',()=>this.run(async()=>{await this.host.saveSettings({...this.host.settings,roots:roots.split('\n').map(s=>s.trim()).filter(Boolean),defaultAccount:account,port});await this.reload(false);this.host.notify('设置已保存。');}),'sp-primary'));
+    local.append(field('内容目录（每行一个）',dirs,'相对于当前知识库。新增目录后保存，已有笔记保持原位。'),field('发布账号',button('管理平台与账号',()=>this.go('accounts'),'sp-text'),'登录和账号绑定在「平台与账号」中管理。'),field('本地连接端口',input(String(port),'本地连接端口',value=>port=Number(value),'number')),button('保存设置',()=>this.run(async()=>{await this.host.saveSettings({...this.host.settings,roots:roots.split('\n').map(s=>s.trim()).filter(Boolean),port});await this.reload(false);this.host.notify('设置已保存。');}),'sp-primary'));
     const connection=this.host.connection();const browser=el('section','sp-panel');browser.append(el('h2','','浏览器辅助填写'),badge(connection.running?(connection.paired?'扩展已配对':'等待配对'):'未连接'),el('p','sp-muted','手动开启本地连接后，在配套扩展中输入端口和本次配对码。只传递已确认的作品。'));
     if(connection.running){const token=input(connection.token,'本次配对码',()=>{},'password');token.readOnly=true;token.autocomplete='off';browser.append(field('本次配对码',token,'关闭连接或重启后失效。'),el('div','sp-actions',button('复制配对码',()=>this.copy(connection.token)),button('关闭连接',()=>this.run(()=>this.host.disconnect()))));}
     else browser.append(button('开启本地连接',()=>this.run(()=>this.host.connect()),'sp-primary',!!this.host.demo));
     browser.append(el('hr'),el('h3','','当前能力'),el('ul','sp-capabilities',el('li','','编辑图文、核对预览、创建填写任务'),el('li','','实验：官方图文编辑页辅助填写'),el('li','','平台草稿、直接发布：尚未开放')),el('p','sp-note','使用配套扩展时，先手动打开小红书官方图文编辑页。核对账号和空白编辑器后，再选择一篇任务。'));
-    layout.append(local,browser);main.append(layout);
+    layout.append(local,browser);main.append(layout,this.updatePanel());
   }
 }

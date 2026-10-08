@@ -314,7 +314,7 @@ export function parsePublication(path: string, markdown: string, frontmatter: Re
   const publication: Publication = {
     title: stringValue(fm["发布标题"] ?? fm.title) || path.split("/").pop()!.replace(/\.md$/i, ""),
     id: stringValue(fm.id), path, registered: fm.ip_kind === "publication", bodySource, section, body, images,
-    topics: stringList(fm["小红书话题"]), account: stringValue(fm["账号"]), originality,
+    topics: stringList(fm["小红书话题"]), account: stringValue(fm["账号"]), accountId: stringValue(fm["平台账号ID"]), originality,
     status: stringValue(fm["状态"]) || "草稿", topic: stringValue(fm["选题"]), mtime, issues, candidates,
     raw: markdown, sourceMarkdown: markdown,
   };
@@ -357,16 +357,17 @@ export async function hashBytes(bytes: ArrayBuffer | Uint8Array): Promise<string
 }
 
 /** A changed byte at the same path invalidates confirmation just like a title or order edit. */
-export async function fingerprint(publication: Pick<Publication, "id" | "title" | "body" | "account" | "topics" | "originality" | "images">, imageVersions: readonly ImageVersion[]): Promise<string> {
+export async function fingerprint(publication: Pick<Publication, "id" | "title" | "body" | "account" | "accountId" | "topics" | "originality" | "images">, imageVersions: readonly ImageVersion[]): Promise<string> {
   if (imageVersions.length !== publication.images.length || imageVersions.some((image, index) => image.path !== publication.images[index] || !image.hash)) {
     throw new Error("图片版本必须完整，并与本次明确选择的图片顺序一致。");
   }
   return hashBytes(new TextEncoder().encode(JSON.stringify({
-    version: 1,
+    version: 2,
     id: publication.id,
     title: publication.title,
     body: publication.body,
     account: publication.account,
+    accountId: publication.accountId || "",
     topics: publication.topics,
     originality: publication.originality,
     images: imageVersions.map((image) => ({ path: image.path, hash: image.hash })),

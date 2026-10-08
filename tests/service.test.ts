@@ -41,6 +41,7 @@ id: ${options.id ?? `synthetic-${name}`}
 图片:
   - "[[${image}]]"
 账号: 合成测试账号
+平台账号ID: synthetic-account
 原创声明: 不声明
 小红书话题: [AI工具, 中文话题]
 状态: 草稿
@@ -57,7 +58,9 @@ async function fixture() {
   const env = api.createMockEnvironment();
   env.vault.seedFolder('发布');
   env.vault.seedFolder('发布外');
+  env.plugin.data = {boundAccount: {platform: 'xiaohongshu', accountId: 'synthetic-account', nickname: '合成测试账号', checkedAt: Date.now()}};
   const service = new api.PublisherService(env.app, env.pluginApi, env.notice);
+  await service.load();
   await service.saveSettings({ configured: true, roots: ['发布'], defaultAccount: '合成测试账号', port: 27123 });
   return { ...env, env, service, api };
 }
@@ -260,7 +263,7 @@ test('plugin restart invalidates prepared work, preserves history, and exposes n
   const request = await paired(restarted);
   context.after(async () => { await restarted.dispose(); });
   assert.deepEqual((await (await request('/jobs')).json()).jobs, []);
-  assert.equal((await request('/claim', { taskId: record.id })).status, 409);
+  assert.equal((await request('/claim', { taskId: record.id, accountId: 'synthetic-account' })).status, 409);
 });
 
 test('stopping queued work does not cancel a claimed editor or unlock it before acknowledgement', async (context) => {
@@ -275,7 +278,7 @@ test('stopping queued work does not cancel a claimed editor or unlock it before 
   const id2 = records.find((record) => record.path === two.path)!.id;
   const request = await paired(service);
   context.after(async () => { await service.dispose(); });
-  assert.equal((await request('/claim', { taskId: id1 })).status, 200);
+  assert.equal((await request('/claim', { taskId: id1, accountId: 'synthetic-account' })).status, 200);
   assert.equal(service.records().find((record) => record.id === id1)!.status, '正在填写');
   await assert.rejects(service.cancel(id1), /正在填写/);
   await service.cancel(id2);
@@ -286,7 +289,7 @@ test('stopping queued work does not cancel a claimed editor or unlock it before 
   service.acknowledge(id1);
   assert.equal((await (await request('/status')).json()).activeTaskId, null);
   assert.deepEqual((await (await request('/jobs')).json()).jobs, []);
-  assert.equal((await request('/claim', { taskId: id1 })).status, 409);
+  assert.equal((await request('/claim', { taskId: id1, accountId: 'synthetic-account' })).status, 409);
 });
 
 test('disconnect and plugin restart preserve unknown claimed results without requeueing acknowledged work', async (context) => {
@@ -296,7 +299,7 @@ test('disconnect and plugin restart preserve unknown claimed results without req
   await service.prepare([{ path: item.path, fingerprint: preview.fingerprint }]);
   const id = service.records()[0].id;
   const request = await paired(service);
-  assert.equal((await request('/claim', { taskId: id })).status, 200);
+  assert.equal((await request('/claim', { taskId: id, accountId: 'synthetic-account' })).status, 200);
   await service.disconnect();
   assert.equal(service.records()[0].status, '结果待核实');
   const restarted = new api.PublisherService(env.app, env.pluginApi, env.notice);
@@ -305,7 +308,7 @@ test('disconnect and plugin restart preserve unknown claimed results without req
   const reconnect = await paired(restarted);
   context.after(async () => { await restarted.dispose(); });
   assert.deepEqual((await (await reconnect('/jobs')).json()).jobs, []);
-  assert.equal((await reconnect('/claim', { taskId: id })).status, 409);
+  assert.equal((await reconnect('/claim', { taskId: id, accountId: 'synthetic-account' })).status, 409);
 });
 
 test('load maps interrupted claim to unknown result and retains acknowledged/manual/cancelled history states', async () => {
@@ -327,7 +330,7 @@ test('manual acknowledgement survives restart and allows a newly reviewed versio
   await service.prepare([{ path: item.path, fingerprint: preview.fingerprint }]);
   const oldId = service.records()[0].id;
   const request = await paired(service);
-  assert.equal((await request('/claim', { taskId: oldId })).status, 200);
+  assert.equal((await request('/claim', { taskId: oldId, accountId: 'synthetic-account' })).status, 200);
   assert.equal((await request('/result', { taskId: oldId, status: '待人工确认', detail: '合成填写完成，人工核对。' })).status, 200);
   service.acknowledge(oldId);
   await service.disconnect();
@@ -343,7 +346,7 @@ test('manual acknowledgement survives restart and allows a newly reviewed versio
   const queued = (await (await reconnect('/jobs')).json()).jobs;
   assert.equal(queued.length, 1);
   assert.notEqual(queued[0].id, oldId);
-  assert.equal((await reconnect('/claim', { taskId: oldId })).status, 409);
+  assert.equal((await reconnect('/claim', { taskId: oldId, accountId: 'synthetic-account' })).status, 409);
 });
 
 test('content and same-path image changes after preparation are stopped before bridge transmission', async () => {
@@ -357,10 +360,165 @@ test('content and same-path image changes after preparation are stopped before b
     else vault.seedBytes(item.image, png(9));
     const request = await paired(service);
     try {
-      assert.equal((await request('/claim', { taskId: id })).status, 409);
+      assert.equal((await request('/claim', { taskId: id, accountId: 'synthetic-account' })).status, 409);
       assert.equal(service.records()[0].status, '结果待核实');
       assert.deepEqual((await (await request('/jobs')).json()).jobs, []);
       assert.equal((await request(`/media/${id}/0`)).status, 409);
     } finally { await service.dispose(); }
   }
+});
+
+async function detect(service: PublisherService, request: Awaited<ReturnType<typeof paired>>, status: 'recognized' | 'logged-out' | 'unknown' = 'recognized', accountId = 'synthetic-account') {
+  await service.requestAccountDetection();
+  const {request: detectionRequest} = await (await request('/account-request', {})).json();
+  assert.ok(detectionRequest);
+  const report = status === 'recognized' ? {requestId: detectionRequest.requestId, status, accountId, nickname: '合成测试账号'} : {requestId: detectionRequest.requestId, status};
+  assert.equal((await request('/account-result', report)).status, 200);
+  return detectionRequest.requestId as string;
+}
+
+test('recognized browser identity requires explicit fresh confirmation and persists only public binding metadata', async (t) => {
+  const {api, env, service, plugin} = await fixture();
+  await service.unbindAccount();
+  await assert.rejects(service.requestAccountDetection(), /连接/);
+  const request = await paired(service);
+  t.after(() => service.dispose());
+  const requestId = await detect(service, request);
+  assert.equal(service.accountState().binding, null);
+  assert.equal(plugin.data?.boundAccount, null);
+  assert.equal(service.accountState().detection?.status, 'recognized');
+  await assert.rejects(service.bindAccount('previous-dialog'), /重新检测/);
+  await service.bindAccount(requestId);
+  const binding = service.accountState().binding!;
+  assert.deepEqual(Object.keys(binding).sort(), ['accountId', 'checkedAt', 'nickname', 'platform']);
+  assert.equal(binding.accountId, 'synthetic-account');
+  assert.deepEqual(plugin.data?.boundAccount, binding);
+  const restarted = new api.PublisherService(env.app, env.pluginApi, env.notice);
+  await restarted.load();
+  assert.deepEqual(restarted.accountState().binding, binding);
+  assert.equal(restarted.accountState().detection, null);
+  assert.equal(restarted.accountState().connected, false);
+});
+
+test('new requests, expiration, unknown results and disconnection cannot bind an old detected identity', async (t) => {
+  const {service} = await fixture();
+  const request = await paired(service);
+  t.after(() => service.dispose());
+  const original = await detect(service, request);
+  await service.requestAccountDetection();
+  await assert.rejects(service.bindAccount(original), /重新检测/);
+  assert.equal((await request('/account-result', {requestId: original, status: 'logged-out'})).status, 409);
+  const unknown = await detect(service, request, 'unknown');
+  await assert.rejects(service.bindAccount(unknown), /重新检测/);
+  const recognized = await detect(service, request);
+  const realNow = Date.now;
+  try {
+    const now = realNow(); Date.now = () => now + 120_001;
+    assert.equal(service.accountState().detection?.status, 'unknown');
+    assert.equal(service.accountState().detection?.account, undefined);
+    await assert.rejects(service.bindAccount(recognized), /重新检测/);
+  } finally { Date.now = realNow; }
+  const reconnectId = await detect(service, request);
+  await service.disconnect();
+  assert.equal(service.accountState().detection, null);
+  await assert.rejects(service.bindAccount(reconnectId), /重新检测/);
+});
+
+test('legacy account labels stay intact but do not grant a bound identity or a fill task', async () => {
+  const {env, service, vault} = await fixture();
+  const item = seedPublication(env, 'legacy');
+  vault.seedText(item.path, item.raw.replace('平台账号ID: synthetic-account\n', ''));
+  const preview = await service.inspect(item.path);
+  assert.equal(preview.publication.account, '合成测试账号');
+  assert.equal(preview.publication.accountId, '');
+  assert.ok(preview.issues.some(issue => issue.code === 'account-not-bound'));
+  await assert.rejects(service.prepare([{path: item.path, fingerprint: preview.fingerprint}]), /阻断/);
+  await service.save({...preview.publication, title: '仍可编辑旧笔记'});
+  assert.equal(readFrontmatter(vault.text(item.path)).账号, '合成测试账号');
+});
+
+test('wrong actual account and rebinding stop a task before transmission', async (t) => {
+  const {env, service} = await fixture();
+  const item = seedPublication(env, 'identity');
+  const preview = await service.inspect(item.path);
+  await service.prepare([{path: item.path, fingerprint: preview.fingerprint}]);
+  const id = service.records()[0].id;
+  const request = await paired(service);
+  t.after(() => service.dispose());
+  assert.equal((await request('/claim', {taskId: id, accountId: 'another-account'})).status, 409);
+  assert.equal(service.records()[0].status, '已准备');
+  await detect(service, request, 'logged-out');
+  assert.equal((await request('/claim', {taskId: id, accountId: 'another-account'})).status, 409);
+  await detect(service, request, 'unknown');
+  assert.equal((await request('/claim', {taskId: id, accountId: 'another-account'})).status, 409);
+  const detectionId = await detect(service, request, 'recognized', 'replacement-account');
+  await service.bindAccount(detectionId);
+  assert.equal((await request('/claim', {taskId: id, accountId: 'replacement-account'})).status, 409);
+  assert.equal((await request(`/media/${id}/0`, {})).status, 409);
+  assert.ok((await service.inspect(item.path)).issues.some(issue => issue.code === 'account-not-bound'));
+});
+
+test('unbinding during a claimed task blocks remaining image transfer without releasing the serial task lock', async (t) => {
+  const {env, service} = await fixture();
+  const item = seedPublication(env, 'claimed-identity');
+  const preview = await service.inspect(item.path);
+  await service.prepare([{path: item.path, fingerprint: preview.fingerprint}]);
+  const id = service.records()[0].id;
+  const request = await paired(service);
+  t.after(() => service.dispose());
+  assert.equal((await request('/claim', {taskId: id, accountId: 'synthetic-account'})).status, 200);
+  await service.unbindAccount();
+  assert.equal((await request(`/media/${id}/0`, {})).status, 409);
+  assert.equal((await (await request('/status')).json()).activeTaskId, id);
+});
+
+test('public account ID is stored in Markdown and changes the reviewed fingerprint independently of nickname', async () => {
+  const {env, service, vault} = await fixture();
+  const item = seedPublication(env, 'fingerprint-identity');
+  const preview = await service.inspect(item.path);
+  const changed = {...preview.publication, accountId: 'another-account'};
+  const imageVersions = [{path: item.image, hash: await hashBytes(png())}];
+  assert.notEqual(await fingerprint(changed, imageVersions), preview.fingerprint);
+  const edited = await service.save(changed);
+  assert.equal(edited.accountId, 'another-account');
+  assert.ok((await service.inspect(item.path)).issues.some(issue => issue.code === 'account-not-bound'));
+  const saved = await service.save({...edited, accountId: 'synthetic-account', title: '更新标题'});
+  assert.equal(saved.accountId, 'synthetic-account');
+  assert.equal(readFrontmatter(vault.text(item.path)).平台账号ID, 'synthetic-account');
+});
+
+test('extension pairing and disconnect emit observable connection changes and invalidate pending account requests', async (t) => {
+  const {service} = await fixture();
+  let updates = 0;
+  service.subscribe(() => { updates += 1; });
+  const request = await paired(service);
+  t.after(() => service.dispose());
+  assert.ok(updates >= 2);
+  assert.equal(service.accountState().paired, true);
+  await service.requestAccountDetection();
+  const oldNonce = service.accountState().detection!.requestId;
+  await service.bridge.stop();
+  assert.equal(service.accountState().detection, null);
+  assert.equal(service.accountState().paired, false);
+  await paired(service);
+  assert.equal(service.accountState().detection, null);
+  assert.notEqual(service.accountState().detection?.requestId, oldNonce);
+});
+
+test('a fresh matching DOM identity can claim after display detection expired, and old account metadata remains editable after unbinding', async (t) => {
+  const {env, service} = await fixture();
+  const item = seedPublication(env, 'expired-display');
+  const preview = await service.inspect(item.path);
+  await service.prepare([{path: item.path, fingerprint: preview.fingerprint}]);
+  const id = service.records()[0].id;
+  const request = await paired(service);
+  t.after(() => service.dispose());
+  await detect(service, request, 'unknown');
+  // /claim actualAccountId is read afresh by the trusted paired extension; cached display status never substitutes for it.
+  assert.equal((await request('/claim', {taskId: id, accountId: 'synthetic-account'})).status, 200);
+  await service.unbindAccount();
+  const saved = await service.save({...preview.publication, body: '解绑后仍可修改文案。'});
+  assert.equal(saved.accountId, 'synthetic-account');
+  assert.equal(saved.body, '解绑后仍可修改文案。');
+  assert.ok((await service.inspect(item.path)).issues.some(issue => issue.code === 'account-not-bound'));
 });

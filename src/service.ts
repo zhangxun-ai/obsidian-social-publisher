@@ -5,9 +5,10 @@ import { realpath } from 'node:fs/promises';
 import { parsePublication, normalizeImageReference, normalizeVaultPath, withinScope, validatePublication, toPlatformText, fingerprint, hashBytes } from './core';
 import type { Publication, Issue, ImageVersion } from './types';
 import { readFrontmatter, writePublication } from './storage';
-import { LocalBridge, type BridgeJob } from './bridge';
-import { DEFAULT_SETTINGS, type PublisherHost, type PublisherSettings, type Preview, type RunRecord } from './host';
+import { LocalBridge, type BridgeJob, type AccountDetectionReport, type AccountDetectionRequest } from './bridge';
+import { DEFAULT_SETTINGS, type PublisherHost, type PublisherSettings, type Preview, type RunRecord, type PlatformAccount, type AccountDetection, type AccountState } from './host';
 
+const ACCOUNT_DETECTION_TTL = 120_000;
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp']);
 type Snapshot = { record: RunRecord; job: BridgeJob };
 
@@ -18,14 +19,27 @@ export class PublisherService implements PublisherHost {
   private listeners = new Set<() => void>();
   private writes: Promise<void> = Promise.resolve();
   private preparing = false;
+  private binding: PlatformAccount | null = null;
+  private detection: AccountDetection | null = null;
+  private detectionExpiresAt = 0;
+  private detectionTimer: ReturnType<typeof setTimeout> | null = null;
   readonly bridge: LocalBridge;
 
   constructor(private app: App, private plugin: Plugin, private notice: (text: string) => void) {
     this.bridge = new LocalBridge({
-      listJobs: () => [...this.snapshots.values()].filter(s => s.record.status === '已准备').map(s => ({id: s.record.id, title: s.job.title, account: s.job.account, imageCount: s.job.images.length})),
+      listJobs: () => [...this.snapshots.values()].filter(s => s.record.status === '已准备').map(s => ({id: s.record.id, title: s.job.title, account: s.job.account, accountId: s.job.accountId, imageCount: s.job.images.length})),
       validateJob: id => this.validateSnapshot(id),
-      claimJob: async id => {
+      validateAccount: (id, accountId) => this.validateAccount(id, accountId),
+      connectionChanged: () => {
+        if (!this.bridge.running || !this.bridge.pairedExtensionId) this.clearDetection();
+        this.emit();
+      },
+      accountRequest: () => this.accountRequest(),
+      reportAccount: report => this.reportAccount(report),
+      claimJob: async (id, accountId) => {
+        this.validateAccount(id, accountId);
         await this.validateSnapshot(id);
+        this.validateAccount(id, accountId);
         const snapshot = this.snapshots.get(id)!;
         snapshot.record.status = '正在填写';
         snapshot.record.detail = '浏览器已领取；等待官方页面填写结果。';
@@ -47,6 +61,7 @@ export class PublisherService implements PublisherHost {
   async load(): Promise<void> {
     const data = await this.plugin.loadData();
     if (data) {
+      this.binding = this.publicAccount(data.boundAccount);
       this.settings = {...DEFAULT_SETTINGS, ...data.settings};
       this.settings.roots = this.settings.roots.map((root: string) => normalizeVaultPath(root));
       this.history = Array.isArray(data.records) ? data.records.slice(-300) : [];
@@ -57,12 +72,77 @@ export class PublisherService implements PublisherHost {
     }
   }
   private persist(): Promise<void> {
-    this.writes = this.writes.catch(() => {}).then(() => this.plugin.saveData({settings: this.settings, records: this.history.slice(-300)}));
+    this.writes = this.writes.catch(() => {}).then(() => this.plugin.saveData({settings: this.settings, boundAccount: this.binding, records: this.history.slice(-300)}));
     return this.writes;
   }
   private emit(): void { for (const listener of this.listeners) listener(); }
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   notify(message: string): void { this.notice(message); }
+  private publicAccount(value: unknown): PlatformAccount | null {
+    if (!value || typeof value !== 'object') return null;
+    const account = value as Partial<PlatformAccount>;
+    if (account.platform !== 'xiaohongshu' || typeof account.accountId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(account.accountId) ||
+      typeof account.nickname !== 'string' || !account.nickname.trim() || account.nickname.length > 100 || /[\u0000-\u001f\u007f]/.test(account.nickname) ||
+      typeof account.checkedAt !== 'number' || !Number.isFinite(account.checkedAt) || account.checkedAt <= 0) return null;
+    return {platform: 'xiaohongshu', accountId: account.accountId, nickname: account.nickname.trim(), checkedAt: account.checkedAt};
+  }
+  accountState(): AccountState {
+    const detection = this.detection ? structuredClone(this.detection) : null;
+    if (detection && Date.now() > this.detectionExpiresAt) { detection.status = 'unknown'; delete detection.account; }
+    return {binding: this.binding ? {...this.binding} : null, detection, connected: this.bridge.running, paired: !!this.bridge.pairedExtensionId};
+  }
+  private accountRequest(): AccountDetectionRequest | null {
+    if (!this.detection || this.detection.status !== 'waiting' || Date.now() > this.detectionExpiresAt) return null;
+    return {requestId: this.detection.requestId, platform: 'xiaohongshu', expiresAt: this.detectionExpiresAt};
+  }
+  private clearDetection(): void {
+    this.detection = null; this.detectionExpiresAt = 0;
+    if (this.detectionTimer) clearTimeout(this.detectionTimer);
+    this.detectionTimer = null;
+  }
+  private scheduleDetectionExpiry(): void {
+    if (this.detectionTimer) clearTimeout(this.detectionTimer);
+    this.detectionTimer = setTimeout(() => {
+      this.detectionTimer = null;
+      if (this.detection) { this.detection.status = 'unknown'; delete this.detection.account; this.emit(); }
+    }, Math.max(1, this.detectionExpiresAt - Date.now() + 1));
+    this.detectionTimer.unref?.();
+  }
+  async requestAccountDetection(): Promise<void> {
+    if (!this.bridge.running || !this.bridge.pairedExtensionId) throw new Error('请先连接配套浏览器扩展，并保持扩展面板打开。');
+    this.detection = {requestId: randomUUID(), status: 'waiting', checkedAt: Date.now()};
+    this.detectionExpiresAt = Date.now() + ACCOUNT_DETECTION_TTL;
+    this.scheduleDetectionExpiry(); this.emit();
+  }
+  private reportAccount(report: AccountDetectionReport): void {
+    if (!this.accountRequest() || report.requestId !== this.detection?.requestId) throw new Error('账号检测请求已经失效。');
+    const now = Date.now();
+    const account = report.status === 'recognized' ? this.publicAccount({platform: 'xiaohongshu', accountId: report.accountId, nickname: report.nickname, checkedAt: now}) : null;
+    if (report.status === 'recognized' && !account) throw new Error('账号公开信息不完整。');
+    this.detection = {requestId: report.requestId, status: report.status, checkedAt: now, ...(account ? {account} : {})};
+    this.detectionExpiresAt = now + ACCOUNT_DETECTION_TTL;
+    this.scheduleDetectionExpiry(); this.emit();
+  }
+  async bindAccount(requestId: string): Promise<void> {
+    const detection = this.detection;
+    if (!this.bridge.running || !this.bridge.pairedExtensionId || !detection || detection.requestId !== requestId ||
+      detection.status !== 'recognized' || !detection.account || Date.now() > this.detectionExpiresAt) {
+      throw new Error('请重新检测账号，再核对并绑定。');
+    }
+    this.binding = {...detection.account};
+    await this.persist(); this.emit();
+  }
+  async unbindAccount(): Promise<void> {
+    this.binding = null;
+    this.clearDetection();
+    await this.persist(); this.emit();
+  }
+  private validateAccount(id: string, actualAccountId: string): void {
+    const snapshot = this.snapshots.get(id);
+    if (!snapshot || !this.binding || actualAccountId !== this.binding.accountId || snapshot.job.accountId !== this.binding.accountId) {
+      throw new Error('网页账号与作品绑定账号不一致。');
+    }
+  }
   private allowed(path: string): boolean { return withinScope(path, this.settings.roots); }
   private file(path: string): TFile {
     const entry = this.app.vault.getAbstractFileByPath(normalizeVaultPath(path));
@@ -140,7 +220,7 @@ export class PublisherService implements PublisherHost {
     const file = await this.app.vault.create(`${folder}/小红书.md`, '');
     const pub = parsePublication(file.path, '', {}, file.stat.mtime);
     pub.title = title; pub.id = randomUUID(); pub.bodySource = 'whole'; pub.body = '';
-    pub.account = this.settings.defaultAccount; pub.status = '草稿';
+    pub.account = this.binding?.nickname || this.settings.defaultAccount; pub.accountId = this.binding?.accountId || ''; pub.status = '草稿';
     return this.save(pub);
   }
   private async ensureFolder(path: string): Promise<void> {
@@ -178,6 +258,9 @@ export class PublisherService implements PublisherHost {
     if (!pub) throw new Error('作品已移出配置目录，请刷新列表。');
     const converted = toPlatformText(pub.body);
     const issues: Issue[] = [...pub.issues, ...validatePublication(pub), ...converted.issues];
+    if (!this.binding || !pub.accountId || pub.accountId !== this.binding.accountId) {
+      issues.push({code: 'account-not-bound', severity: 'error', message: '请先在平台与账号中登录并绑定账号，再为作品选择该发布账号。'});
+    }
     const images: ImageVersion[] = [];
     for (const path of pub.images) {
       try { images.push({path, hash: await hashBytes(await this.readImage(path))}); }
@@ -218,13 +301,14 @@ export class PublisherService implements PublisherHost {
       if (await fingerprint(pub, imageVersions) !== approval.fingerprint) throw new Error('读取期间图片已变化，请重新预览。');
       const current = await this.inspect(pub.path);
       if (current.fingerprint !== approval.fingerprint || current.issues.some(i => i.severity === 'error')) throw new Error('准备期间源内容已变化，请重新预览。');
-      const record: RunRecord = {id: randomUUID(), path: pub.path, title: pub.title, account: pub.account, imageCount: images.length, fingerprint: preview.fingerprint, createdAt: Date.now(), updatedAt: Date.now(), status: '已准备', detail: '本地快照已准备，尚未传入官方页面。'};
-      pending.push({record, job: {id: record.id, title: pub.title, account: pub.account, text: preview.text, originality: pub.originality, topics: [...pub.topics], images}});
+      const record: RunRecord = {id: randomUUID(), path: pub.path, title: pub.title, account: pub.account, accountId: pub.accountId!, imageCount: images.length, fingerprint: preview.fingerprint, createdAt: Date.now(), updatedAt: Date.now(), status: '已准备', detail: '本地快照已准备，尚未传入官方页面。'};
+      pending.push({record, job: {id: record.id, title: pub.title, account: pub.account, accountId: pub.accountId!, text: preview.text, originality: pub.originality, topics: [...pub.topics], images}});
     }
     // Check every source after all asynchronous image reads, before committing any task.
     for (const [path, raw] of expectedSources) {
       if (await this.app.vault.read(this.file(path)) !== raw) throw new Error('准备期间源内容已变化，请重新预览。');
     }
+    if (pending.some(snapshot => snapshot.job.accountId !== this.binding?.accountId)) throw new Error('准备期间绑定账号已变化，请重新预览。');
     for (const snapshot of pending) { this.history.push(snapshot.record); this.snapshots.set(snapshot.record.id, snapshot); }
     await this.persist(); this.emit();
     } finally { this.preparing = false; }
@@ -276,6 +360,7 @@ export class PublisherService implements PublisherHost {
   async connect(): Promise<void> { await this.bridge.start(this.settings.port); this.emit(); }
   async disconnect(): Promise<void> {
     await this.bridge.stop();
+    this.clearDetection();
     for (const record of this.history) if (record.status === '正在填写') { record.status = '结果待核实'; record.detail = '本地连接已关闭，请核对官方页面，不会自动重发。'; }
     await this.persist(); this.emit();
   }

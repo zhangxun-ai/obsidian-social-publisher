@@ -1,7 +1,7 @@
 import { PublisherUI } from './ui';
 import { parsePublication, fingerprint, hashBytes, toPlatformText, validatePublication } from './core';
 import { readFrontmatter, writePublication } from './storage';
-import { DEFAULT_SETTINGS, type PublisherHost, type Preview, type RunRecord } from './host';
+import { DEFAULT_SETTINGS, type PublisherHost, type Preview, type RunRecord, type PlatformAccount, type AccountDetection } from './host';
 import type { Publication } from './types';
 
 const root='发布';
@@ -33,6 +33,12 @@ class DemoHost implements PublisherHost{
   async inspect(path:string):Promise<Preview>{const pub=this.items.find(p=>p.path===path);if(!pub)throw new Error('示例作品不存在。');const converted=toPlatformText(pub.body);const issues=[...pub.issues,...validatePublication(pub),...converted.issues];const imageVersions=[];for(const path of pub.images){try{const response=await fetch(`/${path}`);if(!response.ok)throw new Error();imageVersions.push({path,hash:await hashBytes(await response.arrayBuffer())});}catch{imageVersions.push({path,hash:'unreadable'});issues.push({code:'missing_image',severity:'error' as const,message:`找不到图片：${path}`});}}
     const text=[converted.text,pub.topics.map(t=>`#${t}`).join(' ')].filter(Boolean).join('\n\n');return{publication:structuredClone(pub),text,issues,fingerprint:await fingerprint(pub,imageVersions)};}
   async prepare(entries:Array<{path:string;fingerprint:string}>){if(!entries.length)throw new Error('请选择作品。');for(const e of entries){const p=await this.inspect(e.path);if(p.fingerprint!==e.fingerprint)throw new Error('版本已变化，请重新预览。');if(p.issues.some(i=>i.severity==='error'))throw new Error('存在阻断问题。');this.history.unshift({id:crypto.randomUUID(),path:e.path,title:p.publication.title,account:p.publication.account,imageCount:p.publication.images.length,fingerprint:p.fingerprint,createdAt:Date.now(),updatedAt:Date.now(),status:'已准备',detail:'合成示例：本地准备交互演示，未连接浏览器或平台。'});}this.emit();}
+  private binding: PlatformAccount | null = null;
+  private detection: AccountDetection | null = null;
+  accountState(){return {binding:this.binding,detection:this.detection,connected:false,paired:false};}
+  async requestAccountDetection(){throw new Error('合成预览不会连接或识别真实账号。请在 Obsidian 中使用。');}
+  async bindAccount(){throw new Error('合成预览不绑定真实账号。');}
+  async unbindAccount(){this.binding=null;this.emit();}
   records(){return this.history;}
   async cancel(id:string){const item=this.history.find(r=>r.id===id);if(item)item.status='已取消';this.emit();}
   acknowledge(){this.notify('这是合成示例，没有浏览器任务。');}
@@ -47,4 +53,4 @@ class DemoHost implements PublisherHost{
   notify(text:string){const toast=document.createElement('div');toast.className='demo-toast';toast.textContent=text;document.body.append(toast);setTimeout(()=>toast.remove(),4000);}
 }
 const host=new DemoHost();
-const ui=new PublisherUI(document.getElementById('app')!,host);void ui.mount();
+const ui=new PublisherUI(document.getElementById('app')!,host,{version:'0.1.2（合成预览）',openLogin:()=>host.notify('合成预览不执行登录，请在 Obsidian 中使用。'),checkForUpdates:async()=>host.notify('请在 Obsidian 中通过 BRAT 更新，本页为合成预览。')});void ui.mount();

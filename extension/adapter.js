@@ -83,6 +83,12 @@
     try {
       let fields = locate();
       assertEmpty(fields);
+      const actual = await globalThis.ObsidianSocialPublisherAccount?.detect();
+      if (!payload.accountId || actual?.status !== 'recognized' || actual.accountId !== payload.accountId) {
+        throw new Error('上传前无法确认账号一致，未选择图片。请重新检测并核对账号。');
+      }
+      fields = locate();
+      assertEmpty(fields);
       if (payload.images.length > 1 && !fields.file.multiple) throw new Error('网页未提供多图上传控件，未进行填写。');
       const transfer = new DataTransfer();
       for (const image of payload.images) {
@@ -93,6 +99,11 @@
       fields.file.files = transfer.files;
       fields.file.dispatchEvent(new Event('change', { bubbles: true }));
       fields = await waitForFields();
+      const afterUpload = await globalThis.ObsidianSocialPublisherAccount?.detect();
+      if (afterUpload?.status !== 'recognized' || afterUpload.accountId !== payload.accountId) {
+        throw new Error('图片选择后账号发生变化或无法确认，已停止填写文字，请人工核实。');
+      }
+      fields = locate();
       if ((fields.title.value ?? '').trim() || fields.body.textContent.trim()) {
         throw new Error('上传后发现编辑器已有文案，未覆盖；请核实网页。');
       }

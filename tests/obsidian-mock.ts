@@ -122,10 +122,10 @@ export class MockVault {
 }
 
 export class MockPlugin {
-  data: { settings?: unknown; records?: unknown[] } | null = null;
+  data: { settings?: unknown; boundAccount?: unknown; records?: unknown[] } | null = null;
   readonly saves: unknown[] = [];
   async loadData(): Promise<unknown> { return structuredClone(this.data); }
-  async saveData(data: { settings?: unknown; records?: unknown[] }): Promise<void> {
+  async saveData(data: { settings?: unknown; boundAccount?: unknown; records?: unknown[] }): Promise<void> {
     this.data = structuredClone(data);
     this.saves.push(structuredClone(data));
   }

@@ -40,7 +40,7 @@ export function writePublication(current: string, publication: Publication): str
     图片: publication.images.map(path => `[[${path}]]`),
     封面: publication.images[0] ? `[[${publication.images[0]}]]` : null,
     小红书话题: publication.topics,
-    账号: publication.account || null, 原创声明: publication.originality,
+    账号: publication.account || null, 平台账号ID: publication.accountId || null, 原创声明: publication.originality,
     状态: publication.status || '草稿'
   };
   if (publication.topic) fields.选题 = publication.topic;

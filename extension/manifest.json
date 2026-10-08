@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Obsidian Social Publisher · 辅助填写",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "将已确认的本地素材填写到用户打开的小红书官方编辑器，保留人工核实。",
-  "minimum_chrome_version": "102",
+  "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["http://127.0.0.1/*", "https://creator.xiaohongshu.com/*"],
-  "action": { "default_popup": "popup.html", "default_title": "填写已准备的 Obsidian 作品" }
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "打开 Social Publisher 账号与填写工作台" }
 }

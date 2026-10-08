@@ -22,6 +22,8 @@ export interface Publication {
   images: string[];
   topics: string[];
   account: string;
+  /** Public stable platform ID confirmed in the official browser; labels alone are not identity. */
+  accountId?: string;
   originality: Originality;
   status: string;
   topic: string;
