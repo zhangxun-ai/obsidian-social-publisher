@@ -18,12 +18,14 @@ HTTPS 页面避免 GitHub README 拦截 `obsidian://` 链接。若浏览器仍�
 2. 进入 Plugins → New plugin，提交仓库 `https://github.com/zhangxun-ai/obsidian-social-publisher`。
 3. 根据自动审查和官方审核反馈修复；通过后用户才可从 Obsidian 社区插件中直接安装。
 
-首次提交资料已准备：根目录 README、MIT LICENSE、合法 manifest、versions.json，以及匹配版本的 Release 独立附件。原生加载仍需实测，不将发行结构检查视为市场审核通过。账号登录与连接由账号持有人完成。
+首次提交资料已准备：根目录 README、MIT LICENSE、合法 manifest、versions.json，以及匹配版本的 Release 独立附件。独立测试库的原生加载和 BRAT 仓库安装已验证，不将实测通过视为市场审核通过。账号登录与连接由账号持有人完成。
 
 ## 维护者发布步骤
 
 修改 `manifest.json` 与 `package.json` 到同一 `x.y.z` 版本；同步锁文件和 `versions.json`，新增对应 `docs/releases/x.y.z.md`。在项目根运行 `npm ci`、`npm run check`。通过后提交推送，并推送相同版本的 tag（不带 `v`）。Release 工作流会重新安装依赖、运行检查，再上传三个安装附件。main 分支和 PR 的 Check 工作流也会执行完整检查。
 
 Release 不包含个人知识库、插件 data.json、本地测试库、截图会话或缓存。浏览器配套扩展目前仍需在 Chrome 加载 extension 目录；Obsidian 的安装入口只安装 Obsidian 插件。
+
+HTTPS 安装页由 GitHub Pages 从 main 分支的 /docs 发布；更新 docs/index.html 并推送后自动重新部署。原生验证使用 BRAT 的“添加 Beta 插件”流程，最后的版本选择与安装确认由用户完成；自动化浏览器对 obsidian:// 的跳转拦截未绕过。
 
 来源：[官方提交要求](https://docs.obsidian.md/plugins/releasing/submit-plugin)、[Manifest](https://docs.obsidian.md/Reference/Manifest)、[BRAT 开发者指南](https://github.com/TfTHacker/obsidian42-brat/blob/main/BRAT-DEVELOPER-GUIDE.md)、[BRAT URI 处理实现](https://github.com/TfTHacker/obsidian42-brat/blob/main/src/main.ts)。

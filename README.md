@@ -11,7 +11,7 @@
 **[安装到 Obsidian（BRAT）](https://zhangxun-ai.github.io/obsidian-social-publisher/)** · [GitHub Release](https://github.com/zhangxun-ai/obsidian-social-publisher/releases/latest)
 
 1. 首次使用，在目标知识库的社区插件中搜索 **BRAT**，安装并启用。
-2. 打开上面的安装入口，点击 **安装 Social Publisher**，在 Obsidian 弹出的 BRAT 窗口确认安装。插件文件会自动下载，后续可通过 BRAT 更新。
+2. 打开上面的安装入口，点击 **安装 Social Publisher**，在 Obsidian 弹出的 BRAT 窗口选择版本并确认安装。建议选择最新版本；插件文件会自动下载，后续可通过 BRAT 更新。
 3. 若浏览器没有打开 Obsidian，在 BRAT 设置中点击 **Add a beta plugin**，输入 `zhangxun-ai/obsidian-social-publisher` 并确认。
 
 当前尚未上架 Obsidian 社区市场。BRAT 只需首次安装一次，详情及市场提交流程见 [安装与发行](docs/distribution.md)。此入口安装 Obsidian 插件；配套 Chrome 扩展的安装见下文。
@@ -86,9 +86,9 @@ npm run test-vault  # 创建独立 .dev-vault-social-publisher，并同步构建
 
 ## 验证边界
 
-截至 2026-10-08，自动检查、独立内存 Vault 回归、浏览器界面操作及干净 Chromium 扩展与本地桥接烟测通过。详细证据见 [实施验收记录](docs/verification.md)。
+截至 2026-10-08，自动检查、独立内存 Vault 回归、浏览器界面操作、干净 Chromium 扩展桥接烟测，以及 Obsidian 1.14.4 独立测试库原生加载、预览和本地准备通过。BRAT 仓库安装已验证，安装文件与线上 Release 一致。详细证据见 [实施验收记录](docs/verification.md)。
 
-Obsidian 原生插件加载和日常知识库使用因 Mac 锁屏尚未验证；真实小红书页面上传、草稿重新打开和公开发布均未验证。代码与发行附件公开不代表这些运行层已经通过验证。
+日常知识库完整流程、真实小红书页面上传、草稿重新打开和公开发布均未验证。安装按钮的外部协议唤醒受到自动化浏览器策略阻止，未绕过；BRAT 内添加仓库的备用路径已实际验证。
 
 ## 代码入口
 
