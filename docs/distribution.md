@@ -8,6 +8,8 @@
 
 HTTPS 页面避免 GitHub README 拦截 `obsidian://` 链接。若浏览器仍没有打开 Obsidian，可在 BRAT 设置选择 **Add a beta plugin**，输入 `zhangxun-ai/obsidian-social-publisher` 后确认。始终使用正式的 BRAT/GitHub 安装流程，无需复制插件文件。后续版本在 BRAT 检查更新，自动更新遵从用户的 BRAT 设置。
 
+Obsidian 1.14.4 的独立设置窗口可能承载 BRAT 安装弹窗，但外部链接只唤起主窗口。用户手动点击安装链接后确认发生过此情况：打开设置才看到添加插件窗口。网页现在会在点击时立即显示确认引导和设置快捷键，并始终说明网页无法检测安装结果。BRAT 当前 URI 处理器只创建并打开 Modal，没有将设置窗口置前的处理，也没有提供控制此行为的参数；不通过多次协议跳转或定时重试伪装为已解决原生窗口焦点问题。
+
 插件 ID 为 `social-publisher`，仓库名称保留 `obsidian-social-publisher`。插件 ID 在公开后保持稳定，避免安装出两份插件。旧本地开发包未公开分发，不作自动迁移或删除。
 
 ## 社区市场
