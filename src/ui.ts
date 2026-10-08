@@ -31,12 +31,17 @@ function checkbox(label: string, checked: boolean, change: (value: boolean) => v
 }
 function basename(path: string): string { return path.split('/').pop() || path; }
 function status(pub: Publication): string {
-  if (!pub.registered) return '待登记';
-  if ([...pub.issues, ...validatePublication(pub), ...toPlatformText(pub.body).issues].some(i => i.severity === 'error')) return '需处理';
+  if (!pub.registered) return '未设置发布内容';
+  if ([...pub.issues, ...validatePublication(pub), ...toPlatformText(pub.body).issues].some(i => i.severity === 'error')) return '需要修改';
   return pub.status || '草稿';
 }
 function badge(text: string): HTMLElement {
-  return el('span', `sp-badge ${['需处理', '待登记', '失败', '结果待核实', '需重新准备'].includes(text) ? 'sp-warning' : ['待发布', '已准备', '待人工确认'].includes(text) ? 'sp-purple' : ''}`, text);
+  const taskLabels: Record<string, string> = {
+    '已准备': '等待浏览器填写', '正在填写': '正在填写网页',
+    '待人工确认': '等待核对网页', '结果待核实': '填写结果待核对',
+    '需重新准备': '需重新创建任务', '失败': '填写未完成',
+  };
+  return el('span', `sp-badge ${['需要修改', '未设置发布内容', '失败', '结果待核实', '需重新准备'].includes(text) ? 'sp-warning' : ['待发布', '已准备', '待人工确认'].includes(text) ? 'sp-purple' : ''}`, taskLabels[text] || text);
 }
 
 /**
@@ -119,7 +124,7 @@ export class PublisherUI {
     this.revision += 1;
     const top = el('header', 'sp-top', el('strong', 'sp-brand', 'Social Publisher'));
     const nav = el('nav', 'sp-nav'); nav.setAttribute('aria-label', 'Social Publisher');
-    for (const [key, label] of [['works', '作品'], ['records', '处理记录'], ['settings', '设置']] as const) {
+    for (const [key, label] of [['works', '作品'], ['records', '填写任务记录'], ['settings', '设置']] as const) {
       const active = key === 'works' ? !['records', 'settings'].includes(this.screen) : this.screen === key;
       const b = button(label, () => this.go(key), active ? 'sp-nav-active' : '');
       if (active) b.setAttribute('aria-current', 'page'); nav.append(b);
@@ -149,7 +154,7 @@ export class PublisherUI {
     main.append(el('div', 'sp-heading', el('div', '', el('h1', '', title), subtitle ? el('p', 'sp-muted', subtitle) : null), actions));
   }
   private onboard(main: HTMLElement): void {
-    this.heading(main, '把文案和素材，准备在一起', '从你的发布目录开始。旧稿保留原位，新作品使用独立文件夹。');
+    this.heading(main, '选择要管理的发布内容', '使用已有笔记，或为新作品创建独立文件夹。');
     const form = el('form', 'sp-onboard sp-panel');
     let roots = this.host.settings.roots.join('\n'); let account = this.host.settings.defaultAccount;
     const dirs = el('textarea', 'sp-input'); dirs.value = roots; dirs.rows = 3; dirs.setAttribute('aria-label', '发布内容目录'); dirs.oninput = () => roots = dirs.value;
@@ -158,7 +163,7 @@ export class PublisherUI {
     form.append(start); form.onsubmit = event => {event.preventDefault(); start.click();}; main.append(form);
   }
   private works(main: HTMLElement): void {
-    this.heading(main, '发布作品', '', el('div', 'sp-actions', button('导入旧稿', () => this.go('import')), button('新建作品', () => this.go('create'), 'sp-primary')));
+    this.heading(main, '发布作品', '', el('div', 'sp-actions', button('使用已有笔记', () => this.go('import')), button('新建作品', () => this.go('create'), 'sp-primary')));
     main.querySelector('h1')?.append(el('span','sp-work-count',`${this.publications.length} 篇`));
     const layout = el('div', 'sp-workspace'); const left = el('section', 'sp-work-list');
     const search = input(this.query, '搜索标题或文件名', value => {
@@ -167,7 +172,7 @@ export class PublisherUI {
       const next = this.root.querySelector<HTMLInputElement>('[aria-label="搜索标题或文件名"]'); next?.focus(); if (cursor !== null) next?.setSelectionRange(cursor, cursor);
     }); search.placeholder = '搜索标题或文件名'; search.type = 'search';
     const filters = el('div', 'sp-filter-bar', search);
-    for (const key of ['全部', '待发布', '草稿', '需处理', '待登记']) {
+    for (const key of ['全部', '待发布', '草稿', '需要修改', '未设置发布内容']) {
       const count = this.publications.filter(p => key === '全部' || status(p) === key).length;
       filters.append(button(`${key} ${count}`, () => {this.filter = key; this.selected.clear(); this.render();}, this.filter === key ? 'sp-filter-active' : ''));
     }
@@ -185,8 +190,8 @@ export class PublisherUI {
       row.append(el('td', 'sp-time-col sp-muted', new Intl.DateTimeFormat('zh-CN', {month:'2-digit',day:'2-digit'}).format(pub.mtime || Date.now()))); body.append(row);
     }
     table.append(body); tableWrap.append(table);
-    if (!this.visible.length) tableWrap.append(el('div', 'sp-empty', el('h2', '', this.publications.length ? '没有匹配的作品' : '还没有发布作品'), el('p', 'sp-muted', this.publications.length ? '调整搜索或筛选条件，继续查找。' : '新建一篇作品，或将已有 Markdown 登记为发布稿。'), button(this.publications.length ? '清除筛选' : '新建作品', () => {if(this.publications.length) {this.filter = '全部'; this.query = ''; this.account = ''; this.render();} else this.go('create');})));
-    left.append(tableWrap, el('footer', 'sp-selection-bar', el('span', 'sp-muted', `已选 ${this.chosen.length} 篇 · 当前列表 ${this.visible.length} 篇`), el('div', 'sp-actions', button('取消选择', () => {this.selected.clear(); this.render();}, 'sp-text', !this.chosen.length), button(`准备所选 ${this.chosen.length} 篇`, () => this.go('confirm'), 'sp-primary', !this.chosen.length))));
+    if (!this.visible.length) tableWrap.append(el('div', 'sp-empty', el('h2', '', this.publications.length ? '没有匹配的作品' : '还没有发布作品'), el('p', 'sp-muted', this.publications.length ? '调整搜索或筛选条件，继续查找。' : '新建一篇作品，或选择已有笔记并设置发布内容。'), button(this.publications.length ? '清除筛选' : '新建作品', () => {if(this.publications.length) {this.filter = '全部'; this.query = ''; this.account = ''; this.render();} else this.go('create');})));
+    left.append(tableWrap, el('footer', 'sp-selection-bar', el('span', 'sp-muted', `已选 ${this.chosen.length} 篇 · 当前列表 ${this.visible.length} 篇`), el('div', 'sp-actions', button('取消选择', () => {this.selected.clear(); this.render();}, 'sp-text', !this.chosen.length), button(`创建填写任务 · ${this.chosen.length} 篇`, () => this.go('confirm'), 'sp-primary', !this.chosen.length))));
     const rail = el('aside', 'sp-preview-rail sp-panel'); const pub = this.publications.find(p => p.path === this.activePath);
     if (pub) this.rail(rail, pub); else rail.append(el('p', 'sp-muted', '选择一篇作品，在这里预览。'));
     layout.append(left, rail); main.append(layout);
@@ -205,9 +210,9 @@ export class PublisherUI {
   private rail(container: HTMLElement, pub: Publication): void {
     container.append(el('h2', '', '本次内容')); this.carousel(container, pub);
     const converted = toPlatformText(pub.body);
-    container.append(el('h3', '', pub.title || '尚未填写标题'), el('p', 'sp-excerpt', converted.text || (pub.registered ? '添加发布正文后，这里会显示转换后的内容。' : '先登记旧稿并明确正文范围。')));
+    container.append(el('h3', '', pub.title || '尚未填写标题'), el('p', 'sp-excerpt', converted.text || (pub.registered ? '添加发布正文后，这里会显示转换后的内容。' : '先选择要发布的正文和图片，再保存发布设置。')));
     const topics = el('div', 'sp-topics'); for (const topic of pub.topics) topics.append(el('span', 'sp-topic', `#${topic}`));
-    container.append(topics, el('p', 'sp-muted', `${pub.images.length} 张图片 · ${status(pub)}`), el('div', 'sp-actions', button(pub.registered ? '编辑作品' : '登记旧稿', () => this.edit(pub), 'sp-primary'), button('完整预览', () => this.openPreview(pub.path), 'sp-text', !pub.registered)), el('div', 'sp-rail-foot', '本地准备，尚未提交平台'));
+    container.append(topics, el('p', 'sp-muted', `${pub.images.length} 张图片 · ${status(pub)}`), el('div', 'sp-actions', button(pub.registered ? '编辑作品' : '将已有笔记用于发布', () => this.edit(pub), 'sp-primary'), button('完整预览', () => this.openPreview(pub.path), 'sp-text', !pub.registered)), el('div', 'sp-rail-foot', '仅在本地整理，尚未上传或发布'));
   }
   private edit(pub: Publication): void { this.draft = structuredClone(pub); this.activePath = pub.path; this.screen = 'editor'; this.error = ''; this.render(); }
   private editor(main: HTMLElement): void {
@@ -216,17 +221,17 @@ export class PublisherUI {
       const saved = await this.host.save(draft); this.approvals.delete(saved.path); this.draft = null; await this.reload(false); this.activePath = saved.path; this.screen = 'works'; this.host.notify('修改已保存在本地。');
     });
     main.append(button('返回作品', () => this.go('works'), 'sp-text sp-back'));
-    this.heading(main, draft.registered ? '编辑作品' : '登记旧稿', '保存到原笔记；研究、复盘等未选章节会保留。', el('div', 'sp-actions', button('取消', () => this.go('works')), button('保存修改', save, 'sp-primary', !draft.bodySource)));
+    this.heading(main, draft.registered ? '编辑作品' : '将已有笔记用于发布', '选择要发布的正文和图片。保存会写回原笔记，其他章节会保留。', el('div', 'sp-actions', button('取消', () => this.go('works')), button('保存到原笔记', save, 'sp-primary', !draft.bodySource)));
     const layout = el('div', 'sp-editor-grid'); const fields = el('section', 'sp-panel');
     const title = input(draft.title, '发布标题', value => draft.title = value); fields.append(field('发布标题', title));
     const modes = el('div', 'sp-segments');
-    for (const [value, text] of [['whole','整篇纯正文'], ['section','指定章节']] as const) {
+    for (const [value, text] of [['whole','使用整篇笔记'], ['section','只使用指定章节']] as const) {
       const radio = el('input'); radio.type = 'radio'; radio.name = 'sp-body-source'; radio.checked = draft.bodySource === value;
       radio.addEventListener('change', () => {draft.bodySource = value; try {draft.body = value === 'whole' ? extractBody(draft.raw, 'whole') : draft.section ? extractBody(draft.raw, 'section', draft.section) : '';} catch(error){this.error = (error as Error).message;} this.render();});
       modes.append(el('label', draft.bodySource === value ? 'sp-segment-active' : '', radio, text));
     }
-    fields.append(field('正文来源', modes));
-    if (!draft.registered) fields.append(el('p', 'sp-note', '旧稿可能混有研究或复盘。请明确选择正文范围，系统不会默认采用整篇。'));
+    fields.append(field('发布正文范围', modes));
+    if (!draft.registered) fields.append(el('p', 'sp-note', '请选择要发布的范围。若笔记含研究或复盘，请只使用指定章节；系统不会自动选中整篇。'));
     if (draft.bodySource === 'section') {
       const sections = listSections(draft.raw);
       fields.append(field('对外发布的章节', select(draft.section, '正文章节', [['','请选择章节'], ...sections.map(s => [s.key, s.label] as [string,string])], value => {draft.section = value; try {draft.body = value ? extractBody(draft.raw, 'section', value) : '';} catch(error){this.error = (error as Error).message;} this.render();}), '只采用所选标题下的内容，直到下一同级或更高标题。'));
@@ -239,9 +244,9 @@ export class PublisherUI {
     const settings = el('div', 'sp-field-row', field('发布账号', input(draft.account, '发布账号', value => draft.account = value)), field('原创声明', select(draft.originality, '原创声明', [['未确认','未确认'], ['声明原创','声明原创'], ['不声明','不声明']], value => draft.originality = value as Publication['originality'])));
     const statusOptions: Array<[string,string]> = [['草稿','草稿'],['待发布','待发布']];
     if (!statusOptions.some(([value])=>value===draft.status)) statusOptions.push([draft.status, `${draft.status}（原记录）`]);
-    fields.append(settings, field('准备状态', select(draft.status, '准备状态', statusOptions, value => draft.status = value), '本地状态，不表示平台结果。'));
+    fields.append(settings, field('稿件状态', select(draft.status, '稿件状态', statusOptions, value => draft.status = value), '本地状态，不表示平台结果。'));
     const media = el('section', 'sp-panel sp-media-editor');
-    media.append(el('h2', '', `本次图片 · ${draft.images.length} 张`), el('p','sp-muted','首图为封面。拖动排序，也可使用前移、后移按钮。'));
+    media.append(el('h2', '', `发布图片 · ${draft.images.length} 张`), el('p','sp-muted','首图为封面。拖动排序，也可使用前移、后移按钮。'));
     const grid = el('div', 'sp-image-grid');
     draft.images.forEach((path,index) => {
       const item = el('div', 'sp-image-item'); item.draggable = true;
@@ -250,17 +255,17 @@ export class PublisherUI {
       item.addEventListener('drop', event => {event.preventDefault(); const from = Number(event.dataTransfer?.getData('application/x-sp-image-index')); if (Number.isInteger(from)) {draft.images = moveImage(draft.images, from, index); this.render();}});
       item.append(el('div', 'sp-image-number', index === 0 ? '封面' : String(index + 1).padStart(2,'0')), this.image(path, 'sp-edit-image'), el('span','sp-image-name',basename(path)), el('div', 'sp-image-controls', button('设封面', () => {draft.images = moveImage(draft.images,index,0);this.render();}, '', index === 0), button('前移', () => {draft.images = moveImage(draft.images,index,index-1);this.render();}, '', index === 0), button('后移', () => {draft.images = moveImage(draft.images,index,index+1);this.render();}, '', index === draft.images.length - 1), button('移除', () => {draft.images.splice(index,1); if(!draft.candidates.includes(path))draft.candidates.push(path);this.render();}, 'sp-text'))); grid.append(item);
     });
-    if (!draft.images.length) grid.append(el('div', 'sp-media-empty', '还没有关联发布图片。请从候选素材中添加。'));
-    media.append(grid, el('p','sp-muted','移除关联不会删除原图。新出现的图片不会自动加入。'), el('hr'), el('h2','',`候选素材 · ${draft.candidates.filter(p=>!draft.images.includes(p)).length} 张`));
+    if (!draft.images.length) grid.append(el('div', 'sp-media-empty', '还没有发布图片。请从下方添加图片。'));
+    media.append(grid, el('p','sp-muted','移除关联不会删除原图。新出现的图片不会自动加入。'), el('hr'), el('h2','',`可添加的图片 · ${draft.candidates.filter(p=>!draft.images.includes(p)).length} 张`));
     const candidates = el('div', 'sp-candidate-grid');
     for (const path of draft.candidates.filter(p=>!draft.images.includes(p))) {
       const b = button('', () => {draft.images.push(path);this.render();}, 'sp-candidate'); b.setAttribute('aria-label',`添加图片 ${basename(path)}`); b.append(this.image(path,'sp-candidate-image'), el('span','',basename(path))); candidates.append(b);
     }
-    media.append(candidates, button('关联知识库中的其他图片', () => this.imagePicker(draft), 'sp-text'), el('p','sp-muted','也可将新图存入当前作品的「图片」目录，然后重新打开编辑。'));
+    media.append(candidates, button('从知识库选择图片', () => this.imagePicker(draft), 'sp-text'), el('p','sp-muted','也可将新图存入当前作品的「图片」目录，然后重新打开编辑。'));
     layout.append(fields,media); main.append(layout, el('footer','sp-editor-footer',el('span','sp-muted','本地草稿 · 保存后重新预览'),button('保存并预览',()=>this.run(async()=>{const saved=await this.host.save(draft);this.approvals.delete(saved.path);this.draft=null;await this.reload(false);this.preview=await this.host.inspect(saved.path);this.previewExpired=false;this.screen='preview';}), 'sp-primary',!draft.bodySource)));
   }
   private imagePicker(draft: Publication): void {
-    const dialog = el('dialog','sp-dialog'); dialog.append(el('h2','','关联已有图片'),el('p','sp-muted','输入文件名或路径，仅将明确选中的图片加入本次作品。'));
+    const dialog = el('dialog','sp-dialog'); dialog.append(el('h2','','从知识库选择图片'),el('p','sp-muted','输入文件名或路径，仅将明确选中的图片加入本次作品。'));
     const list = el('div','sp-picker-results');
     const search = input('', '搜索知识库图片', query => {
       list.replaceChildren();
@@ -273,16 +278,16 @@ export class PublisherUI {
   }
   private issues(container: HTMLElement, issues: Issue[]): void {
     if(!issues.length){container.append(el('p','sp-check-ok','本地检查通过。平台限制与排版请在官方编辑器核对。'));return;}
-    const list=el('ul','sp-issues');for(const issue of issues)list.append(el('li',issue.severity==='error'?'sp-issue-error':'',`${issue.severity==='error'?'需处理':'请核对'}：${issue.message}`));container.append(list);
+    const list=el('ul','sp-issues');for(const issue of issues)list.append(el('li',issue.severity==='error'?'sp-issue-error':'',`${issue.severity==='error'?'需要修改':'请核对'}：${issue.message}`));container.append(list);
   }
   private fullPreview(main: HTMLElement): void {
     const preview=this.preview;if(!preview)return;
     const pub=preview.publication;const expired=this.previewExpired;const errors=preview.issues.some(i=>i.severity==='error');
     main.append(button('返回作品',()=>this.go('works'),'sp-text sp-back'));
-    this.heading(main,'实际填写内容预览','这是本次标题、纯文本正文和有序图片。平台效果以官方编辑器为准。',el('div','sp-actions',button('重新加载预览',()=>this.openPreview(pub.path)),button('编辑作品',()=>this.edit(pub))));
+    this.heading(main,'实际填写内容预览','这是本次标题、纯文本正文和图片顺序。平台效果以官方编辑器为准。',el('div','sp-actions',button('重新加载预览',()=>this.openPreview(pub.path)),button('编辑作品',()=>this.edit(pub))));
     const layout=el('div','sp-full-preview');const phone=el('section','sp-platform-preview');this.carousel(phone,pub);phone.append(el('h2','',pub.title),el('div','sp-final-text',preview.text));
     const checks=el('section','sp-panel');checks.append(el('h2','','发布前检查'),el('div','sp-preview-stats',el('span','',`标题 ${[...pub.title].length} 字`),el('span','',`正文 ${[...preview.text].length} 字`),el('span','',`${pub.images.length} 张图片`)),el('p','sp-muted',`核对账号：${pub.account||'尚未指定'}`));this.issues(checks,preview.issues);
-    checks.append(el('div','sp-actions',button('复制标题',()=>this.copy(pub.title),'',errors),button('复制正文',()=>this.copy(preview.text),'',errors)),el('hr'),el('p','sp-note','原创声明、话题关联和平台设置，需要在官方编辑器确认。本地检查不代表平台审核结果。'),button(this.approvals.get(pub.path)===preview.fingerprint?'已确认此版本':'确认此版本',()=>this.run(async()=>{const current=await this.host.inspect(pub.path);if(current.fingerprint!==preview.fingerprint)throw new Error('源内容或图片已变化，此前预览已过期。请重新加载预览。');this.approvals.set(pub.path,preview.fingerprint);this.host.notify('已确认本次版本。');}), 'sp-primary',errors||expired),button('返回批次确认',()=>this.go('confirm'),'sp-text',!this.chosen.length));
+    checks.append(el('div','sp-actions',button('复制标题',()=>this.copy(pub.title),'',errors),button('复制正文',()=>this.copy(preview.text),'',errors)),el('hr'),el('p','sp-note','原创声明、话题关联和平台设置，需要在官方编辑器确认。本地检查不代表平台审核结果。'),button(this.approvals.get(pub.path)===preview.fingerprint?'已确认此版本':'确认此版本',()=>this.run(async()=>{const current=await this.host.inspect(pub.path);if(current.fingerprint!==preview.fingerprint)throw new Error('源内容或图片已变化，此前预览已过期。请重新加载预览。');this.approvals.set(pub.path,preview.fingerprint);this.host.notify('已确认本次版本。');}), 'sp-primary',errors||expired),button('返回任务确认',()=>this.go('confirm'),'sp-text',!this.chosen.length));
     layout.append(phone,checks);main.append(layout);
   }
   private async copy(text:string):Promise<void>{try{await navigator.clipboard.writeText(text);this.host.notify('已复制。');}catch{this.host.notify('复制失败，请手动选择文本复制。');}}
@@ -293,25 +298,25 @@ export class PublisherUI {
     form.append(field('作品主题',name),el('div','sp-folder-example',`${this.host.settings.roots[0]}/\n└── P编号-作品主题/\n    ├── 小红书.md\n    └── 图片/`),el('p','sp-muted','图片文件名可保持 GPT Image 的原名，无需重命名。'),submit);form.onsubmit=e=>{e.preventDefault();submit.click();};main.append(form);
   }
   private importNotes(main:HTMLElement):void{
-    main.append(button('返回作品',()=>this.go('works'),'sp-text sp-back'));this.heading(main,'导入旧稿','原位登记，不移动笔记。下一步需明确正文范围和图片。');
+    main.append(button('返回作品',()=>this.go('works'),'sp-text sp-back'));this.heading(main,'使用已有笔记','选择一篇笔记，设置要发布的正文和图片。保存到原笔记，不复制或移动文件。');
     const panel=el('section','sp-panel');const unregistered=this.publications.filter(p=>!p.registered);
     for(const pub of unregistered)panel.append(el('div','sp-import-row',el('div','',el('strong','',pub.title),el('p','sp-muted',pub.path)),button('选择并核对正文',()=>this.edit(pub),'sp-primary')));
-    if(!unregistered.length)panel.append(el('div','sp-empty',el('h2','','当前目录没有待登记旧稿'),el('p','sp-muted','需要导入其他位置的稿件时，将该目录加入设置后再返回。'),button('管理内容目录',()=>this.go('settings'))));main.append(panel);
+    if(!unregistered.length)panel.append(el('div','sp-empty',el('h2','','当前目录没有尚未设置发布内容的笔记'),el('p','sp-muted','要使用其他位置的笔记，请先将所在目录加入内容目录。'),button('管理内容目录',()=>this.go('settings'))));main.append(panel);
   }
   private confirmBatch(main:HTMLElement):void{
-    main.append(button('返回作品',()=>this.go('works'),'sp-text sp-back'));this.heading(main,'准备所选作品',`本次 ${this.chosen.length} 篇；仅处理当前筛选中的明确选择。`);
+    main.append(button('返回作品',()=>this.go('works'),'sp-text sp-back'));this.heading(main,'确认填写任务',`本次 ${this.chosen.length} 篇；仅处理当前筛选中的明确选择。`);
     const panel=el('section','sp-panel');let allApproved=this.chosen.length>0;
     for(const pub of this.chosen){const approved=this.approvals.has(pub.path);if(!approved)allApproved=false;panel.append(el('div','sp-confirm-row',this.image(pub.images[0],'sp-cover-small'),el('div','sp-grow',el('strong','',pub.title),el('p','sp-muted',`${pub.account||'未指定账号'} · ${pub.images.length} 张图片`)),badge(approved?'已核对版本':'待预览'),button(approved?'再次预览':'查看并确认',()=>this.openPreview(pub.path))));}
     if(!this.chosen.length)panel.append(el('p','sp-muted','当前没有选中的作品。请返回列表选择。'));
-    panel.append(el('hr'),el('p','sp-note','准备动作会固定本次标题、正文和图序。任何源内容或图片变化都会使确认失效。本地准备不会向平台提交。'),el('div','sp-actions',button(`确认并准备 ${this.chosen.length} 篇`,()=>this.run(async()=>{const entries=this.chosen.map(pub=>({path:pub.path,fingerprint:this.approvals.get(pub.path)||''}));await this.host.prepare(entries);this.selected.clear();this.screen='records';}), 'sp-primary',!allApproved),button('返回选择',()=>this.go('works'))));main.append(panel);
+    panel.append(el('hr'),el('p','sp-note','创建任务会保留本次已确认的标题、正文和图片顺序，供浏览器扩展填写小红书编辑器。内容变化后需重新预览并创建任务。此步骤不会上传或发布。'),el('div','sp-actions',button(`创建 ${this.chosen.length} 篇填写任务`,()=>this.run(async()=>{const entries=this.chosen.map(pub=>({path:pub.path,fingerprint:this.approvals.get(pub.path)||''}));await this.host.prepare(entries);this.selected.clear();this.screen='records';}), 'sp-primary',!allApproved),button('返回选择',()=>this.go('works'))));main.append(panel);
   }
   private records(main:HTMLElement):void{
-    this.heading(main,'处理记录','填写、平台草稿与公开发布分别核对。系统不会自动重试不明任务。',el('div','sp-actions',button('停止剩余任务',()=>this.run(async()=>{for(const record of this.host.records().filter(r=>r.status==='已准备'))await this.host.cancel(record.id);}), '',!this.host.records().some(r=>r.status==='已准备')),button('刷新',()=>this.reload()),button('浏览器连接',()=>this.go('settings'))));
+    this.heading(main,'填写任务记录','查看等待填写、正在填写和需要核对的任务。填写完成后，请到小红书编辑器核对；不会自动发布或重试。',el('div','sp-actions',button('取消待填写任务',()=>this.run(async()=>{for(const record of this.host.records().filter(r=>r.status==='已准备'))await this.host.cancel(record.id);}), '',!this.host.records().some(r=>r.status==='已准备')),button('刷新',()=>this.reload()),button('浏览器连接',()=>this.go('settings'))));
     const records=this.host.records();const panel=el('section','sp-panel');
-    if(!records.length)panel.append(el('div','sp-empty',el('h2','','还没有处理记录'),el('p','sp-muted','选择作品、预览确认后，创建本地准备任务。'),button('前往作品',()=>this.go('works'),'sp-primary')));
-    for(const record of records){const row=el('article','sp-record');const header=el('div','sp-record-head',el('div','sp-grow',el('h2','',record.title),el('p','sp-muted',`${record.account||'未指定账号'} · ${record.imageCount} 张 · ${new Date(record.createdAt).toLocaleString('zh-CN')}`)),badge(record.status));row.append(header,el('p','',record.detail));const actions=el('div','sp-actions',button('查看源稿',()=>this.host.openNote(record.path),'sp-text'));
-      if(['已准备','需重新准备'].includes(record.status))actions.append(button('停止此任务',()=>this.run(()=>this.host.cancel(record.id))));
-      if(!record.closed&&['待人工确认','结果待核实','失败'].includes(record.status))actions.append(button('已核对当前页面，允许下一篇',()=>{this.host.acknowledge(record.id);this.host.notify('已解除当前页面锁。下一篇仍需在浏览器扩展中手动开始。');}),button('结束本地跟踪',()=>this.run(()=>this.host.cancel(record.id)),'sp-text'));
+    if(!records.length)panel.append(el('div','sp-empty',el('h2','','还没有填写任务'),el('p','sp-muted','选择作品并核对完整预览，再创建填写任务。'),button('前往作品',()=>this.go('works'),'sp-primary')));
+    for(const record of records){const row=el('article','sp-record');const header=el('div','sp-record-head',el('div','sp-grow',el('h2','',record.title),el('p','sp-muted',`${record.account||'未指定账号'} · ${record.imageCount} 张 · ${new Date(record.createdAt).toLocaleString('zh-CN')}`)),badge(record.status));row.append(header,el('p','',record.detail));const actions=el('div','sp-actions',button('打开原笔记',()=>this.host.openNote(record.path),'sp-text'));
+      if(['已准备','需重新准备'].includes(record.status))actions.append(button('取消填写任务',()=>this.run(()=>this.host.cancel(record.id))));
+      if(!record.closed&&['待人工确认','结果待核实','失败'].includes(record.status))actions.append(button('已核对当前页面，允许下一篇',()=>{this.host.acknowledge(record.id);this.host.notify('已允许填写下一篇。请在浏览器扩展中手动选择并开始。');}),button('结束此任务',()=>this.run(()=>this.host.cancel(record.id)),'sp-text'));
       row.append(actions);panel.append(row);
     }
     main.append(panel,el('p','sp-muted','浏览器辅助填写为实验功能。完成填写不等于保存草稿或发布成功；平台草稿与直接发布尚未开放。'));
@@ -324,7 +329,7 @@ export class PublisherUI {
     const connection=this.host.connection();const browser=el('section','sp-panel');browser.append(el('h2','','浏览器辅助填写'),badge(connection.running?(connection.paired?'扩展已配对':'等待配对'):'未连接'),el('p','sp-muted','手动开启本地连接后，在配套扩展中输入端口和本次配对码。只传递已确认的作品。'));
     if(connection.running){const token=input(connection.token,'本次配对码',()=>{},'password');token.readOnly=true;token.autocomplete='off';browser.append(field('本次配对码',token,'关闭连接或重启后失效。'),el('div','sp-actions',button('复制配对码',()=>this.copy(connection.token)),button('关闭连接',()=>this.run(()=>this.host.disconnect()))));}
     else browser.append(button('开启本地连接',()=>this.run(()=>this.host.connect()),'sp-primary',!!this.host.demo));
-    browser.append(el('hr'),el('h3','','当前能力'),el('ul','sp-capabilities',el('li','','本地编辑、检查、预览与准备'),el('li','','实验：官方图文编辑页辅助填写'),el('li','','平台草稿、直接发布：尚未开放')),el('p','sp-note','使用配套扩展时，先手动打开小红书官方图文编辑页。核对账号和空白编辑器后，再选择一篇任务。'));
+    browser.append(el('hr'),el('h3','','当前能力'),el('ul','sp-capabilities',el('li','','编辑图文、核对预览、创建填写任务'),el('li','','实验：官方图文编辑页辅助填写'),el('li','','平台草稿、直接发布：尚未开放')),el('p','sp-note','使用配套扩展时，先手动打开小红书官方图文编辑页。核对账号和空白编辑器后，再选择一篇任务。'));
     layout.append(local,browser);main.append(layout);
   }
 }

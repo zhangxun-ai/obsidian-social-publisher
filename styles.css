@@ -71,6 +71,7 @@
 .sp-button.sp-title-button { display: block; text-align: left; border: 0; background: transparent; padding: 0; min-height: auto; font-weight: 600; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
 .sp-path { display: block; color: var(--sp-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-badge { display: inline-block; border-radius: 20px; padding: 2px 9px; background: var(--sp-bg-subtle); color: var(--sp-muted); font-size: 12px; white-space: nowrap; }
+.sp-table .sp-badge { white-space: normal; overflow-wrap: anywhere; }
 .sp-badge.sp-purple { background: var(--sp-tint); color: var(--sp-accent); }
 .sp-badge.sp-warning { color: #9e4d00; background: #fff1dd; }
 .theme-dark .sp-badge.sp-warning { color: #ffc586; background: #4a331b; }

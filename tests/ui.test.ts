@@ -22,11 +22,11 @@ for(const change of ['body','same-path-image']){
     const findButton=(label:string)=>[...root.querySelectorAll('button')].find((b:any)=>b.textContent===label) as HTMLButtonElement;
     try{
       await ui.mount();findButton('完整预览').click();await tick();findButton('确认此版本').click();await tick();findButton('返回作品').click();
-      root.querySelector('tbody input[type="checkbox"]').click();findButton('准备所选 1 篇').click();
-      assert.match(root.textContent,/已核对版本/);assert.equal(findButton('确认并准备 1 篇').disabled,false);
+      root.querySelector('tbody input[type="checkbox"]').click();findButton('创建填写任务 · 1 篇').click();
+      assert.match(root.textContent,/已核对版本/);assert.equal(findButton('创建 1 篇填写任务').disabled,false);
       version='changed';if(change==='body')pub.body='外部修改后的正文';
       await ui.reload();
-      assert.doesNotMatch(root.textContent,/已核对版本/);assert.match(root.textContent,/待预览/);assert.equal(findButton('确认并准备 1 篇').disabled,true);findButton('确认并准备 1 篇').click();assert.equal(preparations,0);
+      assert.doesNotMatch(root.textContent,/已核对版本/);assert.match(root.textContent,/待预览/);assert.equal(findButton('创建 1 篇填写任务').disabled,true);findButton('创建 1 篇填写任务').click();assert.equal(preparations,0);
     }finally{ui.destroy();dom.window.close();if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else Reflect.deleteProperty(globalThis,'document');}
   });
 }

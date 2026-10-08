@@ -38,7 +38,7 @@ async function request(path, body) {
     body: JSON.stringify(body ?? {}),
   }, 15_000);
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || '桥接请求未完成，请回 Obsidian 核实。');
+  if (!response.ok) throw new Error(data.error || '本地连接请求未完成，请回 Obsidian 检查连接。');
   return data;
 }
 
@@ -72,7 +72,7 @@ elements.connect.addEventListener('click', async () => {
     connection = null;
     jobs = [];
     elements.jobs.replaceChildren(new Option('请重新配对', ''));
-    message('连接未完成。请核对 Obsidian 桥接已启动、配对码有效且未绑定其他扩展。');
+    message('连接未完成。请核对 Obsidian 本地连接已开启、配对码有效且未绑定其他扩展。');
   } finally { busy = false; update(); }
 });
 
@@ -119,7 +119,7 @@ elements.fill.addEventListener('click', async () => {
     const job = await request('/claim', { taskId });
     const images = [];
     for (const image of job.images) {
-      if (!/^\/media\/[A-Za-z0-9_-]{1,128}\/\d+$/.test(image.url)) throw new Error('桥接返回了不允许的媒体路径。');
+      if (!/^\/media\/[A-Za-z0-9_-]{1,128}\/\d+$/.test(image.url)) throw new Error('图片读取被阻止，请先核对官方网页，再回 Obsidian 处理当前任务。');
       const response = await timedFetch(`http://127.0.0.1:${connection.port}${image.url}`, {
         method: 'POST', mode: 'cors', cache: 'no-store',
         headers: { Authorization: `Bearer ${connection.token}`, 'Content-Type': 'application/json' }, body: '{}',

@@ -9,15 +9,15 @@
 <body>
   <h1>填写一篇，人工核实</h1>
   <p class="notice">实验适配 · 尚未通过真实平台验收。只填写用户已打开的官方编辑器，图片上传结果、账号、话题关联和原创声明均需你核实。</p>
-  <label>桥接端口<input id="port" type="number" value="27123" min="1024" max="65535"></label>
-  <label>Obsidian 本次配对码<input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="先在插件中启动浏览器桥接"></label>
+  <label>本地连接端口<input id="port" type="number" value="27123" min="1024" max="65535"></label>
+  <label>Obsidian 本次配对码<input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="先在 Obsidian 插件设置中开启本地连接"></label>
   <div class="row"><button id="connect">配对并读取待填写作品</button><button id="forget" class="secondary">清除配对</button></div>
   <label>本次作品<select id="jobs" disabled><option value="">请先配对</option></select></label>
   <p id="summary" class="muted"></p>
   <label class="check"><input id="account-check" type="checkbox">我已核对当前网页账号与所选作品的账号一致</label>
   <label class="check"><input id="empty-check" type="checkbox">我已打开新的空白图文编辑器，本次只填写这一篇</label>
-  <button id="fill" disabled>领取并辅助填写这一篇</button>
-  <p class="muted">填写期间保持此窗口打开。完成或中断后不会自动重试；先核实网页，再回 Obsidian 确认本篇已处理，才可领取下一篇。不会点击发布、草稿或原创控件。</p>
+  <button id="fill" disabled>开始填写这一篇</button>
+  <p class="muted">填写期间保持此窗口打开。完成或中断后不会自动重试；先核实网页，再回 Obsidian 确认本篇已处理，才可填写下一篇。不会点击发布、草稿或原创控件。</p>
   <p id="status" role="status" aria-live="polite">尚未连接。</p>
   <script src="popup.js"></script>
 </body>
