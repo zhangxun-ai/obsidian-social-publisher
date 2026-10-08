@@ -347,52 +347,60 @@ export class PublisherUI {
     if (!binding && draft) container.append(button('前往登录并绑定账号', () => this.go('accounts'), 'sp-text'));
     return container;
   }
-  private accountConnection(): HTMLElement {
+  private accountConnection(): HTMLDetailsElement {
     const connection = this.host.connection();
     const details = el('details', 'sp-account-connection');
-    details.append(el('summary', '', connection.paired ? '浏览器扩展已连接' : '首次使用：连接浏览器扩展'));
-    details.append(el('p', 'sp-muted', '在同一个浏览器安装配套扩展。开启本地连接后，将端口和本次配对码填入扩展。点击扩展图标打开浏览器工作台标签页，配对后保持该标签页打开。'));
+    details.open = !connection.paired;
+    details.append(el('summary', '', connection.paired ? '浏览器扩展已连接' : '先连接浏览器扩展'));
+    details.append(el('p', 'sp-muted', '在登录小红书的同一个 Chrome 浏览器中安装配套扩展。已登录小红书无需再次登录。'), button('查看扩展安装说明', () => window.open('https://github.com/zhangxun-ai/obsidian-social-publisher/tree/main/extension', '_blank'), 'sp-text'));
+    details.append(el('p', 'sp-muted', connection.running ? '点击浏览器中的扩展图标打开工作台，填入下方端口和配对码，点击「配对并读取待填写作品」。保持工作台标签页打开，再回这里检测账号。' : '安装扩展后，开启下方本地连接，获取端口和配对码，再到浏览器扩展工作台完成配对。'));
     if (connection.running) {
       const token = input(connection.token, '账号检测配对码', () => {}, 'password'); token.readOnly = true; token.autocomplete = 'off';
       details.append(field('本地连接端口', el('span', '', String(connection.port))), field('本次配对码', token), button('复制配对码', () => this.copy(connection.token)));
     } else details.append(button('开启本地连接', () => this.run(() => this.host.connect()), 'sp-primary', !!this.host.demo));
-    details.append(button('查看扩展安装说明', () => window.open('https://github.com/zhangxun-ai/obsidian-social-publisher/tree/main/extension', '_blank'), 'sp-text'));
     return details;
   }
   private accounts(main: HTMLElement): void {
     this.heading(main, '平台与账号', '登录官方平台，核对后绑定到当前知识库。');
     const state = this.host.accountState?.();
+    const connection = this.host.connection();
+    const connectionHelp = this.accountConnection();
     const binding = state?.binding;
     const detection = state?.detection;
     const detected = detection?.status === 'recognized' ? detection.account : undefined;
     const fresh = !!detection && Date.now() - detection.checkedAt < 120_000;
     const matching = fresh && detected && binding?.accountId === detected.accountId;
     let loginStatus = '尚未检测';
-    if (!state?.paired) loginStatus = '浏览器未连接';
+    if (!connection.running) loginStatus = '本地连接未开启';
+    else if (!state?.paired) loginStatus = '等待浏览器扩展配对';
     else if (detection?.status === 'waiting') loginStatus = '等待检测';
     else if (detection?.status === 'logged-out') loginStatus = binding ? '登录已失效' : '未登录';
     else if (detection?.status === 'unknown') loginStatus = '无法识别账号';
     else if (matching) loginStatus = '已核对账号';
     else if (fresh && detected) loginStatus = binding ? '账号与绑定不一致' : '已识别，等待绑定';
     const summary = el('section', 'sp-account-summary');
-    for (const [label, value] of [['发布平台', '小红书'], ['当前账号', binding ? `${binding.nickname} · ${binding.accountId}` : '尚未绑定账号'], ['登录状态', loginStatus]]) {
+    for (const [label, value] of [['发布平台', '小红书'], ['当前账号', binding ? `${binding.nickname} · ${binding.accountId}` : '尚未绑定账号'], ['账号检测状态', loginStatus]]) {
       summary.append(el('div', '', el('span', 'sp-muted', label), el('strong', '', value)));
     }
-    summary.append(button(binding ? '重新登录小红书' : '登录小红书账号', () => this.runtime?.openLogin(), 'sp-primary', !this.runtime));
+    if (!connection.running) summary.append(button('开启本地连接', () => this.run(() => this.host.connect()), 'sp-primary', !!this.host.demo));
+    else if (!state?.paired) summary.append(button('查看配对步骤', () => { connectionHelp.open = true; connectionHelp.scrollIntoView?.({block:'nearest'}); connectionHelp.querySelector('summary')?.focus(); }, 'sp-primary'));
+    else summary.append(button('检测登录状态', () => this.run(() => this.host.requestAccountDetection()), 'sp-primary', detection?.status === 'waiting'));
+    if (!state?.paired) main.append(el('p', 'sp-note', '网页已登录后，仍需连接浏览器扩展，插件才能识别账号。请先完成下方配对，再检测并确认绑定。'));
     const layout = el('div', 'sp-account-grid');
-    const login = el('section', 'sp-panel'); login.append(el('h2', '', '登录并绑定账号'));
+    const login = el('section', 'sp-panel'); login.append(el('h2', '', '连接浏览器并绑定账号'), connectionHelp);
     const steps = el('ol', 'sp-login-steps');
-    for (const text of ['打开官方登录页', '在浏览器中完成登录', '检测并核对账号']) steps.append(el('li', '', text));
+    for (const text of ['在同一浏览器登录小红书（已登录可跳过）', '检测登录账号', '核对昵称和账号标识，确认绑定']) steps.append(el('li', '', text));
     login.append(steps, el('p', 'sp-muted', '登录完成后，确认昵称和账号标识，再绑定到此知识库。'), el('div', 'sp-actions sp-account-actions',
       button('打开小红书登录页', () => this.runtime?.openLogin(), '', !this.runtime),
-      button('检测登录状态', () => this.run(async () => { await this.host.requestAccountDetection!(); }), 'sp-primary', !state?.paired || !this.host.requestAccountDetection || detection?.status === 'waiting')));
+      button('检测登录状态', () => this.run(async () => { await this.host.requestAccountDetection!(); }), 'sp-primary', !state?.paired || !this.host.requestAccountDetection || detection?.status === 'waiting')),
+      el('p', 'sp-muted', '登录页会在系统默认浏览器打开。若不是安装扩展的 Chrome，请在该 Chrome 中打开 creator.xiaohongshu.com。'));
     const feedback = el('div', 'sp-account-feedback'); feedback.setAttribute('role', 'status');
     if (fresh && detected) {
       feedback.append(el('strong', '', `${detected.nickname} · ${detected.accountId}`), el('p', 'sp-muted', `检测时间：${new Date(detection!.checkedAt).toLocaleTimeString('zh-CN')}`));
       if (!matching) feedback.append(el('p', '', binding ? '浏览器当前账号与已绑定账号不同。核对后，可更换当前知识库的绑定账号。' : '请确认这是你要用于发布的小红书账号。'), button(binding ? '确认更换绑定账号' : '确认并绑定此账号', () => this.run(async () => { await this.host.bindAccount!(detection!.requestId); this.host.notify('已绑定账号。填写前会再次核对浏览器当前账号。'); }), 'sp-primary'));
       else feedback.append(el('p', '', '当前账号与此知识库绑定的账号一致。'));
-    } else feedback.append(el('p', '', detection?.status === 'waiting' ? '等待浏览器检测，请保持小红书页面和浏览器工作台标签页打开。' : detection?.status === 'logged-out' ? '当前未登录，请在官方页面登录后重新检测。' : detection?.status === 'unknown' ? '未能识别公开账号标识。请确认官方页面已登录，刷新页面后重新检测。' : detection && !fresh ? '检测结果已过期，请重新检测。' : '尚未检测到登录账号。'));
-    login.append(feedback, el('p', 'sp-muted', '登录状态保存在浏览器中，插件不保存账号密码。'), this.accountConnection());
+    } else feedback.append(el('p', '', !state?.paired ? (connection.running ? '请先在浏览器扩展工作台完成配对，配对后即可检测账号。' : '请先开启本地连接并配对浏览器扩展。网页是否已登录，要在连接后才能检测。') : detection?.status === 'waiting' ? '等待浏览器检测，请保持小红书页面和浏览器工作台标签页打开。' : detection?.status === 'logged-out' ? '当前未登录，请在官方页面登录后重新检测。' : detection?.status === 'unknown' ? '未能识别公开账号标识。请确认官方页面已登录，刷新页面后重新检测。' : detection && !fresh ? '检测结果已过期，请重新检测。' : '浏览器已连接。点击「检测登录状态」获取账号信息；已登录无需重新打开登录页。'));
+    login.append(feedback, el('p', 'sp-muted', '登录状态保存在浏览器中，插件不保存账号密码。'));
     const usage = el('section', 'sp-panel'); usage.append(el('h2', '', '发布时使用哪个账号'), field('发布平台', select('xiaohongshu', '发布时的平台', [['xiaohongshu', '小红书']], () => {})), this.accountPicker(), el('p', 'sp-note', '每篇作品在编辑时选择已绑定账号。浏览器切换账号后，需要重新检测和核对。'));
     if (binding) usage.append(button('解除当前知识库的账号绑定', () => this.run(async () => { await this.host.unbindAccount!(); this.host.notify('已解除本地绑定，浏览器登录状态未改变。'); }), 'sp-text'));
     layout.append(login, usage); main.append(summary, layout, this.updatePanel());

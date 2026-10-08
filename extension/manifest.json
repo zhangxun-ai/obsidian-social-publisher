@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Obsidian Social Publisher · 辅助填写",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "将已确认的本地素材填写到用户打开的小红书官方编辑器，保留人工核实。",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage"],

@@ -195,7 +195,7 @@
 .sp-account-feedback { padding: 15px; border: 1px solid var(--sp-line); border-radius: 5px; margin-bottom: 15px; overflow-wrap: anywhere; }
 .sp-account-feedback p + p, .sp-account-feedback p + button { margin-top: 12px; }
 .sp-account-feedback strong + p { margin-top: 5px; }
-.sp-account-connection { border-top: 1px solid var(--sp-line); margin-top: 20px; padding-top: 16px; }
+.sp-account-connection { border-bottom: 1px solid var(--sp-line); margin-bottom: 18px; padding-bottom: 16px; }
 .sp-account-connection summary { cursor: pointer; font-weight: 500; }
 .sp-account-connection > p { margin: 12px 0 18px; }
 .sp-account-connection .sp-field { margin-bottom: 14px; }
