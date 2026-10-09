@@ -1,10 +1,20 @@
 const byId = (id) => document.getElementById(id);
-const elements = Object.fromEntries(['port', 'token', 'connect', 'forget', 'jobs', 'summary', 'account-check', 'empty-check', 'fill', 'status', 'detect-account', 'account-status', 'official-tabs', 'refresh-tabs', 'connection-panel', 'connection-state', 'connection-options', 'connection-error', 'account-panel', 'target-picker', 'fill-panel', 'jobs-panel', 'jobs-empty', 'refresh-jobs', 'open-login'].map((id) => [id, byId(id)]));
+const elements = Object.fromEntries(['port', 'token', 'connect', 'forget', 'jobs', 'summary', 'account-check', 'empty-check', 'fill', 'status', 'detect-account', 'account-status', 'official-tabs', 'refresh-tabs', 'connection-panel', 'connection-state', 'connection-options', 'connection-error', 'account-panel', 'target-picker', 'fill-panel', 'jobs-panel', 'jobs-empty', 'refresh-jobs', 'open-login', 'auto-connection', 'discovery-status', 'vault-picker', 'vaults', 'choose-vault', 'open-obsidian', 'retry-connection', 'connection-recovery'].map((id) => [id, byId(id)]));
 let connection = null;
 let jobs = [];
 let activeTaskId = null;
 let busy = false;
 let pairing = false;
+let filling = false;
+let connectionPhase = 'discovering';
+let discoveredVaults = [];
+let preferredVaultId = null;
+let lastVaultId = null;
+let connectionEpoch = 0;
+let recoveryPromise = null;
+let interruptedVault = null;
+let connectionRejected = false;
+let identityPromise = null;
 let checkingAccount = false;
 let lastAccountRequest = null;
 let accountPoll = null;
@@ -25,46 +35,260 @@ const allowedPage = (url) => {
 function update() {
   const selected = jobs.find((job) => job.id === elements.jobs.value);
   elements.fill.disabled = busy || !connection || !!activeTaskId || !selected?.accountId || !elements['account-check'].checked || !elements['empty-check'].checked;
-  elements.connect.disabled = busy;
+  elements.connect.disabled = busy || !!activeTaskId;
   elements['detect-account'].disabled = busy || !connection || checkingAccount;
-  elements.forget.disabled = busy || checkingAccount;
+  elements.forget.disabled = busy || checkingAccount || !!activeTaskId;
   elements['official-tabs'].disabled = busy || checkingAccount || !!activeTaskId;
   elements['refresh-tabs'].disabled = busy || checkingAccount || !!activeTaskId;
   elements.jobs.disabled = busy || !connection || !!activeTaskId || jobs.length === 0;
-  elements['connection-panel'].hidden = !!connection && !pairing;
-  elements.connect.textContent = pairing ? '正在连接…' : '连接并检测账号';
-  elements['connection-state'].textContent = pairing ? '正在连接…' : connection ? '已连接 Obsidian' : '未连接 Obsidian';
+  elements['connection-panel'].hidden = false;
+  elements['auto-connection'].hidden = !!connection && !pairing;
+  elements['choose-vault'].disabled = pairing || !elements.vaults.value;
+  elements.vaults.disabled = pairing;
+  elements['retry-connection'].hidden = !['missing', 'error', 'timeout', 'choosing'].includes(connectionPhase);
+  elements['open-obsidian'].hidden = !['missing', 'error', 'timeout'].includes(connectionPhase);
+  elements.connect.textContent = pairing ? '正在连接…' : '使用连接码';
+  elements['connection-state'].textContent = connectionPhase === 'approval' ? '等待 Obsidian 确认' : pairing ? '正在连接…' : connection ? `已连接${connection.vaultName ? `「${connection.vaultName}」` : ' Obsidian'}` : '未连接 Obsidian';
   elements.forget.hidden = !connection;
   elements['account-panel'].hidden = !connection || pairing;
   elements['fill-panel'].hidden = !connection || (!jobs.length && !activeTaskId);
   elements['jobs-panel'].hidden = !connection || pairing;
   elements['jobs-empty'].hidden = !!jobs.length || !!activeTaskId;
-  elements['refresh-jobs'].disabled = busy || !connection || !!activeTaskId;
+  elements['refresh-jobs'].disabled = busy || !connection;
   elements.summary.textContent = activeTaskId
     ? '已有任务被领取。请先核实网页，再回 Obsidian 确认该篇已处理；不会自动重发。'
     : selected ? `账号：${selected.account || '未指定，请先回 Obsidian 补充'} · ${selected.imageCount} 张图片 · 首图为封面` : '';
 }
 
-async function request(path, body) {
-  if (!connection) throw new Error('请先配对。');
+async function localPost(port, path, body, token, timeout = 15_000) {
+  const requestEpoch = connectionEpoch;
   try {
-    const response = await timedFetch(`http://127.0.0.1:${connection.port}${path}`, {
-    // Chrome omits the Origin header on extension GETs. POST reads retain its genuine Origin.
-    method: 'POST', mode: 'cors', cache: 'no-store',
-    headers: { Authorization: `Bearer ${connection.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  }, 15_000);
+    const response = await timedFetch(`http://127.0.0.1:${port}${path}`, {
+      // Chrome itself supplies the extension Origin. Never accept a claimed Origin.
+      method: 'POST', mode: 'cors', cache: 'no-store', redirect: 'error',
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    }, timeout).catch(error => { error.connectionFailure = true; throw error; });
     if (!response.ok) { const error = new Error('本地连接请求未完成。'); error.status = response.status; throw error; }
     return await response.json();
-  } catch (error) { error.localRequest = true; throw error; }
+  } catch (error) { error.localRequest = true; error.requestEpoch = requestEpoch; throw error; }
 }
+async function request(path, body) {
+  if (!connection) throw new Error('请先连接 Obsidian。');
+  try { return await localPost(connection.port, path, body, connection.token); }
+  catch (error) {
+    // Recovery may retry reads, never a claim, image transfer, result, or an active fill.
+    if ((error.connectionFailure || [401, 403].includes(error.status)) && error.requestEpoch === connectionEpoch &&
+      !connectionRejected && !filling && !activeTaskId && !recoveryPromise && connection?.vaultId &&
+      ['/status', '/jobs', '/account-request', '/account-detect'].includes(path)) {
+      await recoverTrustedConnection();
+      if (connection) {
+        try { return await localPost(connection.port, path, body, connection.token); }
+        catch (retryError) {
+          if (retryError.requestEpoch === connectionEpoch && (retryError.connectionFailure || [401, 403].includes(retryError.status))) {
+            interruptedVault = { vaultId: connection.vaultId, vaultName: connection.vaultName };
+            connection = null;
+            stopAccountPolling();
+            await chrome.storage.session.remove('ospConnection').catch(() => {});
+            connectionState('error', '连接仍不可用。请打开原知识库，再重新查找。');
+          }
+          throw retryError;
+        }
+      }
+    }
+    throw error;
+  }
+}
+
+const validToken = (value) => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
+const validVault = (value) => value && value.protocol === 2 && typeof value.vaultId === 'string' &&
+  /^[A-Za-z0-9_-]{1,128}$/.test(value.vaultId) && typeof value.vaultName === 'string' &&
+  value.vaultName.trim().length > 0 && value.vaultName.length <= 120;
+const pause = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
+function randomId(length) {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function installationIdentity() {
+  if (!identityPromise) identityPromise = (async () => {
+    const saved = (await chrome.storage.local.get('ospInstallation')).ospInstallation;
+    if (saved && /^[A-Za-z0-9_-]{22}$/.test(saved.clientId) && validToken(saved.clientSecret)) {
+      return { clientId: saved.clientId, clientSecret: saved.clientSecret };
+    }
+    const identity = { clientId: randomId(16), clientSecret: randomId(32) };
+    await chrome.storage.local.set({ ospInstallation: identity });
+    return identity;
+  })().catch(error => { identityPromise = null; throw error; });
+  return identityPromise;
+}
+function stopAccountPolling() {
+  if (accountPoll) clearInterval(accountPoll);
+  accountPoll = null;
+}
+function connectionState(phase, detail) {
+  connectionPhase = phase;
+  elements['discovery-status'].textContent = detail;
+  update();
+}
+async function finishConnection(next, epoch) {
+  if (epoch !== connectionEpoch) return;
+  connection = next;
+  interruptedVault = null;
+  connectionRejected = false;
+  pairing = false;
+  lastAccountRequest = null;
+  connectionPhase = 'connected';
+  lastVaultId = next.vaultId ?? lastVaultId;
+  await chrome.storage.session.set({ ospConnection: next }).catch(() => {});
+  if (next.vaultId) await chrome.storage.local.set({ ospLastVaultId: next.vaultId }).catch(() => {});
+  if (epoch !== connectionEpoch) return;
+  elements['connection-options'].open = false;
+  elements.token.value = '';
+  clearConnectionError(); message(''); update();
+  await refreshOfficialTabs().catch(() => { elements['account-status'].textContent = '请刷新页面列表，选择已登录的小红书页面。'; });
+  if (epoch !== connectionEpoch) return;
+  await refresh().catch(() => { message('已连接 Obsidian，读取作品失败。请点击「刷新待填写作品」。'); });
+  if (epoch === connectionEpoch && connection) startAccountPolling();
+}
+async function connectToVault(vault, epoch) {
+  pairing = true;
+  connectionState('connecting', `正在连接「${vault.vaultName}」…`);
+  try {
+    const identity = await installationIdentity();
+    let deadline = Date.now() + 120_000;
+    while (epoch === connectionEpoch && Date.now() < deadline) {
+      const result = await localPost(vault.port, '/connect', identity, null, 3000);
+      if (epoch !== connectionEpoch) return;
+      if (result.status === 'connected' && validToken(result.token)) {
+        await finishConnection({ port: vault.port, token: result.token, vaultId: vault.vaultId, vaultName: vault.vaultName, protocol: 2 }, epoch);
+        return;
+      }
+      if (result.status !== 'approval-required' || typeof result.requestId !== 'string' ||
+        !Number.isFinite(result.expiresAt)) throw new Error('连接响应无效。');
+      deadline = Math.min(deadline, result.expiresAt);
+      connectionState('approval', `请在 Obsidian「${vault.vaultName}」确认连接。仅需确认一次，确认后自动继续。`);
+      await pause(Math.min(1000, Math.max(0, deadline - Date.now())));
+    }
+    if (epoch === connectionEpoch) connectionState('timeout', '确认已超时。请重新查找，并在 Obsidian 确认连接。');
+  } catch (error) {
+    if (epoch === connectionEpoch && error.status === 403) connectionRejected = true;
+    if (epoch === connectionEpoch) connectionState('error', error.status === 403
+      ? '连接未获允许，请在 Obsidian 重新开启连接后重试。'
+      : '连接未完成。请确认 Obsidian 和 Social Publisher 已打开，再重试。');
+  } finally { if (epoch === connectionEpoch) { pairing = false; update(); } }
+}
+async function scanVaults() {
+  return Promise.all(Array.from({ length: 8 }, async (_, offset) => {
+    const port = 27123 + offset;
+    try {
+      const data = await localPost(port, '/discover', {}, null, 1000);
+      return validVault(data) ? { protocol: 2, vaultId: data.vaultId, vaultName: data.vaultName, port } : null;
+    } catch { return null; }
+  }));
+}
+async function discoverVaults() {
+  const epoch = ++connectionEpoch;
+  connectionRejected = false;
+  interruptedVault = null;
+  stopAccountPolling();
+  connection = null; pairing = true;
+  discoveredVaults = [];
+  elements['vault-picker'].hidden = true;
+  connectionState('discovering', '正在查找已打开的知识库…');
+  const results = await scanVaults();
+  if (epoch !== connectionEpoch) return;
+  const seen = new Set();
+  discoveredVaults = results.filter(vault => vault && !seen.has(vault.vaultId) && seen.add(vault.vaultId));
+  pairing = false;
+  if (!discoveredVaults.length) {
+    elements['connection-options'].hidden = false;
+    connectionState('missing', '未找到 Social Publisher。请打开 Obsidian 中的目标知识库，并确认插件已启用。');
+    return;
+  }
+  const wanted = preferredVaultId ?? lastVaultId;
+  const remembered = discoveredVaults.find(vault => vault.vaultId === wanted);
+  // A missing previous vault must never silently redirect the installation to another vault.
+  if (remembered || (!wanted && discoveredVaults.length === 1)) {
+    await connectToVault(remembered ?? discoveredVaults[0], epoch);
+    return;
+  }
+  elements.vaults.replaceChildren(new Option('请选择知识库', ''));
+  for (const vault of discoveredVaults) elements.vaults.append(new Option(vault.vaultName, vault.vaultId));
+  elements['vault-picker'].hidden = false;
+  connectionState('choosing', wanted ? '上次连接的知识库未打开。请选择本次要连接的知识库。' : '发现多个知识库，请选择本次要连接的知识库。');
+}
+async function recoverTrustedConnection() {
+  if (recoveryPromise) return recoveryPromise;
+  const previous = connection ?? interruptedVault;
+  if (!previous?.vaultId || connectionRejected || filling || activeTaskId) return;
+  const epoch = ++connectionEpoch;
+  stopAccountPolling();
+  interruptedVault = { vaultId: previous.vaultId, vaultName: previous.vaultName };
+  connection = null;
+  pairing = true;
+  elements['vault-picker'].hidden = true;
+  connectionState('discovering', `正在重新查找原知识库${previous.vaultName ? `「${previous.vaultName}」` : ''}…`);
+  recoveryPromise = (async () => {
+    try {
+      await chrome.storage.session.remove('ospConnection').catch(() => {});
+      const vaults = await scanVaults();
+      if (epoch !== connectionEpoch) return;
+      const vault = vaults.find(candidate => candidate?.vaultId === previous.vaultId);
+      if (!vault) {
+        connectionState('missing', '未找到原知识库。请打开 Obsidian 中的原知识库，再重新查找。');
+        return;
+      }
+      await connectToVault(vault, epoch);
+    } catch { if (epoch === connectionEpoch) connectionState('error', '连接已中断。请打开原知识库，再重新查找。'); }
+  })().finally(() => { recoveryPromise = null; if (epoch === connectionEpoch) { pairing = false; update(); } });
+  return recoveryPromise;
+}
+// One bounded attempt when returning after opening Obsidian; no timer-based rediscovery.
+window.addEventListener('focus', () => {
+  if (!['missing', 'error'].includes(connectionPhase) || connectionRejected || pairing || busy || checkingAccount || filling || activeTaskId || recoveryPromise) return;
+  if (interruptedVault) void recoverTrustedConnection();
+  else void discoverVaults();
+});
+elements.vaults.addEventListener('change', update);
+elements['choose-vault'].addEventListener('click', async () => {
+  const vault = discoveredVaults.find(candidate => candidate.vaultId === elements.vaults.value);
+  if (!vault || pairing) return;
+  preferredVaultId = vault.vaultId;
+  await chrome.storage.local.set({ ospPreferredVaultId: vault.vaultId }).catch(() => {});
+  await connectToVault(vault, ++connectionEpoch);
+});
+elements['retry-connection'].addEventListener('click', () => { if (!filling && !activeTaskId) void discoverVaults(); });
+elements['connection-recovery'].addEventListener('click', () => {
+  elements['connection-options'].hidden = false;
+  elements['connection-options'].open = true;
+});
 
 
 async function detectCurrentAccount(tab) {
-  if (!tab?.id || !allowedCreatorPage(tab.url)) return { status: 'unknown' };
-  await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['account.js'] });
-  const result = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => globalThis.ObsidianSocialPublisherAccount.detect() });
-  return result[0]?.result ?? { status: 'unknown' };
+  if (!tab?.id || !allowedCreatorPage(tab.url)) return { status: 'unknown', reason: 'wrong-page' };
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['account.js'] });
+    const result = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => globalThis.ObsidianSocialPublisherAccount.detect() });
+    return result[0]?.result ?? { status: 'unknown', reason: 'invalid-response' };
+  } catch {
+    const error = new Error('无法读取此标签页，请刷新小红书页面后重试。');
+    error.pageRead = true;
+    throw error;
+  }
+}
+function accountRecovery(result) {
+  const messages = {
+    'wrong-page': '请选择小红书官方后台页面，再点击「重新检测」。',
+    'login-required': '尚未登录。请打开小红书登录后，点击「重新检测」。',
+    timeout: '账号检测超时。请检查浏览器网络，再点击「重新检测」。',
+    network: '无法连接小红书。请检查浏览器网络，再点击「重新检测」。',
+    'http-error': '小红书官方服务暂不可用，请稍后重新检测。',
+    redirect: '官方页面发生跳转。请重新打开小红书官方后台，再重新检测。',
+    'invalid-response': '官方账号信息暂无法可靠识别，请稍后重新检测；不会猜测账号 ID。',
+    'identity-missing': '官方账号信息暂无法可靠识别，请稍后重新检测；不会猜测账号 ID。',
+  };
+  return typeof messages[result.reason] === 'string' ? messages[result.reason]
+    : result.status === 'logged-out' ? messages['login-required'] : messages['invalid-response'];
 }
 
 const allowedCreatorPage = (url) => {
@@ -122,17 +346,18 @@ async function respondToAccountRequest(manual = false) {
     lastAccountRequest = pending.requestId;
     elements['account-status'].textContent = result.status === 'recognized'
       ? `已识别：${result.nickname}。回 Obsidian 确认绑定即可。`
-      : result.status === 'logged-out' ? '尚未登录。请打开小红书登录后，点击「重新检测」。'
-      : '未能识别账号。请确认选中的小红书页面已登录，再重新检测。';
+      : accountRecovery(result);
     elements['open-login'].hidden = result.status === 'recognized';
   } catch (error) {
+    if (error.requestEpoch !== undefined && error.requestEpoch !== connectionEpoch) return;
     if (error.localRequest && (!error.status || [401, 403].includes(error.status))) {
       if (accountPoll) clearInterval(accountPoll);
       accountPoll = null; connection = null;
-      connectionError('连接已中断，请从 Obsidian 重新复制连接码。');
+      if (!['error', 'timeout'].includes(connectionPhase)) connectionState('error', '连接已中断。请打开原知识库，再重新查找；旧版插件可使用高级连接。');
     } else elements['account-status'].textContent = error.status === 409
       ? '检测请求已更新或过期，请点击「重新检测」。'
-      : '页面无法读取，请刷新页面列表后重新检测。';
+      : error.pageRead ? '无法读取此标签页，请刷新小红书页面后重试。'
+      : '账号检测未完成，请重新检测；仍无法完成时请重新连接 Obsidian。';
   }
   finally { checkingAccount = false; update(); }
 }
@@ -162,7 +387,12 @@ async function beginAccountDetection() {
 elements['detect-account'].addEventListener('click', () => { void beginAccountDetection(); });
 
 async function refresh() {
+  const epoch = connectionEpoch;
+  const vaultId = connection?.vaultId;
   const data = await request('/jobs');
+  if (epoch !== connectionEpoch && !connection) return;
+  // A successful retry after same-vault trust recovery remains valid; another vault does not.
+  if (!connection || (epoch !== connectionEpoch && (!vaultId || connection.vaultId !== vaultId))) return;
   jobs = data.jobs;
   activeTaskId = data.activeTaskId;
   elements.jobs.replaceChildren(new Option(jobs.length ? '请选择一篇作品' : '没有可领取作品', ''));
@@ -185,23 +415,19 @@ elements.connect.addEventListener('click', async () => {
     connectionError(token ? '连接码不完整或格式不正确。请在 Obsidian 点击「复制连接码」，重新粘贴。' : '请先粘贴从 Obsidian 复制的连接码。');
     return;
   }
+  const epoch = ++connectionEpoch;
+  stopAccountPolling();
   busy = true;
   pairing = true;
   connection = { port, token };
   update();
   try {
     await request('/pair', {});
-    pairing = false;
-    elements['connection-options'].open = false;
-    update();
-    // Pairing remains successful even if reading tasks or tab metadata fails.
-    await chrome.storage.session.set({ ospConnection: connection }).catch(() => {});
-    message('');
-    await refreshOfficialTabs().catch(() => { elements['account-status'].textContent = '请刷新页面列表，选择已登录的小红书页面。'; });
-    await refresh().catch(() => { message('已连接 Obsidian，读取作品失败。请点击「刷新待填写作品」。'); });
+    await finishConnection({ port, token }, epoch);
   } catch (error) {
     connection = null;
     jobs = [];
+    connectionState('error', '旧版连接未完成。请查看高级连接中的提示，或重新查找知识库。');
     connectionError(error.status === 401 || error.status === 403
       ? '连接码已失效，或已连接其他浏览器。请在 Obsidian 断开连接后重新复制连接码。'
       : '无法连接 Obsidian。请确认插件已开启，再复制最新的连接码。');
@@ -222,13 +448,14 @@ function connectionError(text, field = elements.token) {
 }
 for (const field of [elements.token, elements.port]) field.addEventListener('input', clearConnectionError);
 elements['refresh-jobs'].addEventListener('click', async () => {
-  if (!connection || busy || activeTaskId) return;
+  if (!connection || busy) return;
   busy = true; update();
   try { await refresh(); message(''); } catch { message('作品未能读取，请确认 Obsidian 连接仍开启后重试。'); }
   finally { busy = false; update(); }
 });
 
 elements.forget.addEventListener('click', async () => {
+  ++connectionEpoch;
   await chrome.storage.session.remove('ospConnection');
   if (accountPoll) clearInterval(accountPoll);
   accountPoll = null;
@@ -239,6 +466,7 @@ elements.forget.addEventListener('click', async () => {
   elements.token.value = '';
   elements.jobs.replaceChildren(new Option('请先连接', ''));
   clearConnectionError(); message('');
+  connectionState('missing', '已断开连接。需要继续时请重新查找知识库。');
   update();
 });
 
@@ -258,6 +486,7 @@ const base64 = (bytes) => {
 elements.fill.addEventListener('click', async () => {
   const taskId = elements.jobs.value;
   if (elements.fill.disabled || !taskId) return;
+  filling = true;
   busy = true;
   update();
   let claimed = false;
@@ -303,14 +532,33 @@ elements.fill.addEventListener('click', async () => {
       try { await request('/result', { taskId, status: '结果待核实', detail: '领取或填写过程中断，请检查官方网页与 Obsidian 任务记录。不会自动重发。' }); } catch { /* Keep the lock; an unknown result must not trigger a second claim. */ }
       message('领取或填写未完成，结果待核实。请检查官方网页，再回 Obsidian 处理当前任务；不会自动重试。');
     } else { message(error.message || '未进行填写，请核对页面。'); }
-  } finally { busy = false; update(); }
+  } finally { filling = false; busy = false; update(); }
 });
 
-// Restore credentials only. Reading jobs or filling a page always requires a click.
-chrome.storage.session.get('ospConnection').then((data) => {
-  const saved = data.ospConnection;
-  if (saved) { elements.port.value = saved.port; elements.token.value = saved.token; message('连接码已恢复，点击「连接并检测账号」继续。'); }
-});
-
+// Opening the workbench resumes its authorized session; first trust still needs Obsidian approval.
+async function initializeConnection() {
+  const initialEpoch = connectionEpoch;
+  try {
+    const savedLocal = await chrome.storage.local.get(['ospPreferredVaultId', 'ospLastVaultId']);
+    preferredVaultId = savedLocal.ospPreferredVaultId ?? null;
+    lastVaultId = savedLocal.ospLastVaultId ?? null;
+    const saved = (await chrome.storage.session.get('ospConnection')).ospConnection;
+    if (initialEpoch !== connectionEpoch) return;
+    if (saved && Number.isInteger(saved.port) && saved.port >= 1024 && saved.port <= 65535 && validToken(saved.token)) {
+      // Even an expired session identifies its vault. Never fall through to another one.
+      if (typeof saved.vaultId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(saved.vaultId)) lastVaultId = saved.vaultId;
+      const epoch = ++connectionEpoch;
+      pairing = true; update();
+      try {
+        await localPost(saved.port, '/status', {}, saved.token, 1000);
+        await finishConnection(saved, epoch);
+        return;
+      } catch { await chrome.storage.session.remove('ospConnection').catch(() => {}); }
+      pairing = false;
+    }
+    await discoverVaults();
+  } catch { pairing = false; connectionState('error', '无法恢复浏览器连接。请重新查找；仍无法连接时可使用高级连接。'); }
+}
 void refreshOfficialTabs().catch(() => {});
 update();
+void initializeConnection();

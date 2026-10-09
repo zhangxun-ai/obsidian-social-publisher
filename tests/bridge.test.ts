@@ -4,13 +4,14 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { request as httpRequest } from 'node:http';
 import test from 'node:test';
-import { LocalBridge, type BridgeJob, type BridgeProvider } from '../src/bridge.ts';
+import { LocalBridge, STORE_EXTENSION_ID, type BridgeJob, type BridgeProvider } from '../src/bridge.ts';
 
 const ORIGIN = `chrome-extension://${'a'.repeat(32)}`;
 const OTHER_ORIGIN = `chrome-extension://${'b'.repeat(32)}`;
-const rawHostStatus = (port: number, host: string, token: string) => new Promise<number>((resolve, reject) => {
-  const request = httpRequest({ hostname: '127.0.0.1', port, path: '/pair', method: 'POST',
-    headers: { Host: host, Origin: ORIGIN, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }, (response) => {
+const STORE_ORIGIN = `chrome-extension://${STORE_EXTENSION_ID}`;
+const rawHostStatus = (port: number, host: string, token: string, path = '/pair', origin = ORIGIN) => new Promise<number>((resolve, reject) => {
+  const request = httpRequest({ hostname: '127.0.0.1', port, path, method: 'POST',
+    headers: { Host: host, Origin: origin, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }, (response) => {
     response.resume();
     response.on('end', () => resolve(response.statusCode!));
   });
@@ -75,6 +76,72 @@ test('concurrent pairing cannot replace the first paired extension', async (t) =
   t.after(() => f.bridge.stop());
   const results = await Promise.all([f.pair(), f.call('/pair', {}, { Origin: OTHER_ORIGIN })]);
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 403]);
+});
+
+test('automatic discovery and first connection expose no token or content and accept only the actual store Origin', async t => {
+  let approved = false; let detections = 0;
+  const f = await fixture({
+    discovery: () => ({protocol: 2, vaultId: 'synthetic-opaque-id', vaultName: '独立合成库', privatePath: '/private/not-returned'}),
+    connectBrowser: () => approved ? {status: 'connected'} : {status: 'approval-required', requestId: 'approval-one', expiresAt: Date.now() + 60_000},
+    requestAccountDetection: () => { detections += 1; },
+  });
+  t.after(() => f.bridge.stop());
+  const call = (path: string, body: unknown = {}, headers: Record<string, string> = {}) => fetch(`http://127.0.0.1:${f.port}${path}`, {
+    method: 'POST', headers: {Origin: STORE_ORIGIN, 'Content-Type': 'application/json', ...headers}, body: JSON.stringify(body),
+  });
+  const credentials = {clientId: 'c'.repeat(22), clientSecret: 's'.repeat(43)};
+  assert.deepEqual(await (await call('/discover')).json(), {protocol: 2, vaultId: 'synthetic-opaque-id', vaultName: '独立合成库'});
+  for (const origin of ['', ORIGIN, 'https://creator.xiaohongshu.com']) {
+    assert.equal((await call('/discover', {}, {Origin: origin})).status, 403);
+    assert.equal((await call('/connect', credentials, {Origin: origin})).status, 403);
+  }
+  assert.equal((await call('/discover', {}, {Origin: '', 'X-Extension-Origin': STORE_ORIGIN})).status, 403);
+  assert.equal(await rawHostStatus(f.port, `evil.example:${f.port}`, f.bridge.token, '/discover', STORE_ORIGIN), 403);
+  assert.equal((await call('/discover', {path: '/private'})).status, 400);
+  assert.equal((await call('/discover?path=private')).status, 400);
+  assert.equal((await call('/connect', {...credentials, cookie: 'rejected'})).status, 400);
+  assert.equal((await call('/connect', {...credentials, clientId: 'short'})).status, 400);
+  assert.equal((await call('/connect', {...credentials, clientSecret: 'short'})).status, 400);
+  assert.equal((await call('/connect', {...credentials, clientSecret: '!'.repeat(43)})).status, 400);
+  assert.equal((await call('/connect', {clientId: credentials.clientId})).status, 400);
+  assert.equal((await call('/connect', [] )).status, 400);
+  assert.equal((await call('/connect', credentials, {'Content-Type': 'text/plain'})).status, 415);
+  assert.equal((await call('/connect', {...credentials, oversized: 'x'.repeat(5000)})).status, 413);
+  assert.equal((await fetch(`http://127.0.0.1:${f.port}/discover`, {headers: {Origin: STORE_ORIGIN}})).status, 405);
+  const pending = await (await call('/connect', credentials)).json();
+  assert.equal(pending.status, 'approval-required');
+  assert.deepEqual(Object.keys(pending).sort(), ['expiresAt', 'requestId', 'status']);
+  assert.equal(f.bridge.pairedExtensionId, null);
+  assert.equal(detections, 0);
+  assert.equal((await call('/jobs')).status, 401);
+  assert.equal((await call('/jobs', {}, {Authorization: `Bearer ${credentials.clientSecret}`})).status, 401);
+  approved = true;
+  const connected = await (await call('/connect', credentials)).json();
+  assert.deepEqual(connected, {status: 'connected', token: f.bridge.token});
+  assert.equal(f.bridge.pairedExtensionId, STORE_EXTENSION_ID);
+  assert.equal(detections, 1);
+  assert.deepEqual(await (await call('/connect', credentials)).json(), connected);
+  assert.equal(detections, 1);
+  assert.equal((await call('/jobs')).status, 401);
+  assert.equal((await call('/jobs', {}, {Authorization: `Bearer ${connected.token}`})).status, 200);
+});
+
+test('an automatic connection authorized in an older session cannot attach or expose the restarted session token', async t => {
+  let release!: () => void; let entered!: () => void; let detections = 0;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const f = await fixture({connectBrowser: async () => { entered(); await waiting; return {status: 'connected'}; }, requestAccountDetection: () => { detections += 1; }});
+  t.after(() => f.bridge.stop());
+  const oldToken = f.bridge.token;
+  const response = f.call('/connect', {clientId: 'c'.repeat(22), clientSecret: 's'.repeat(43)}, {Origin: STORE_ORIGIN, Authorization: ''}).catch(() => null);
+  await reached;
+  await f.bridge.stop();
+  await f.bridge.start(0);
+  release();
+  assert.equal(await response, null);
+  assert.notEqual(f.bridge.token, oldToken);
+  assert.equal(f.bridge.pairedExtensionId, null);
+  assert.equal(detections, 0);
 });
 
 test('API rejects oversized, unknown, non-JSON and unsupported requests', async (t) => {

@@ -7,6 +7,7 @@ export interface PublisherRuntime {
   version: string;
   vaultName?: string;
   openLogin(): void;
+  openExtension?(): void;
   checkForUpdates(): Promise<void>;
 }
 type Child = Node | string | undefined | null;
@@ -82,6 +83,7 @@ export class PublisherUI {
     this.unsubscribe = host.subscribe(() => this.requestRefresh());
   }
   async mount(): Promise<void> { await this.reload(true); }
+  showAccounts(): void { this.go('accounts'); }
   requestRefresh(): void {
     clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => { void this.reload(false); }, 180);
@@ -352,18 +354,29 @@ export class PublisherUI {
     if (!this.host.connection().running) await this.host.connect();
     try {
       await navigator.clipboard.writeText(this.host.connection().token);
-      this.host.notify('连接码已复制，粘贴到浏览器扩展后点击「连接并检测账号」。');
-    } catch { throw new Error('未能复制连接码，请在「连接设置」中手动复制。'); }
+      this.host.notify('连接码已复制。仅旧版扩展需要手动粘贴。');
+    } catch { throw new Error('复制失败。展开「旧版扩展连接」，点击连接码后按复制快捷键。'); }
+  }
+  private openExtension(): void {
+    if (this.runtime?.openExtension) this.runtime.openExtension();
+    else window.open('https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html', '_blank');
   }
   private accountConnection(): HTMLDetailsElement {
     const connection = this.host.connection();
     const details = el('details', 'sp-account-connection');
-    details.append(el('summary', '', '连接设置'));
+    details.append(el('summary', '', '连接选项'));
     if (connection.running) {
+      details.append(el('p', 'sp-muted', '已允许的浏览器会自动重连。关闭后可随时重新开启。'),
+        button('关闭浏览器连接', () => this.run(() => this.host.disconnect())),
+        button('取消已允许的浏览器', () => this.run(async () => { await this.host.forgetBrowsers(); this.host.notify('浏览器授权已取消，下次连接需重新允许。'); }), 'sp-text'));
+      const legacy = el('details', 'sp-account-help', el('summary', '', '旧版扩展连接'));
       const token = input(connection.token, '连接码', () => {}, 'password'); token.readOnly = true; token.autocomplete = 'off';
-      details.append(field('连接端口', el('span', '', String(connection.port))), field('连接码', token),
-        button('断开连接', () => this.run(() => this.host.disconnect())));
-    } else details.append(el('p', 'sp-muted', '复制连接码时会开启本地连接。'));
+      token.addEventListener('focus', () => token.select());
+      legacy.append(el('p', 'sp-muted', '商店扩展尚未更新时，可用此方式临时连接。'),
+        field('连接端口', el('span', '', String(connection.port))), field('连接码', token),
+        button('复制连接码', () => this.run(() => this.copyConnection()), '', !!this.host.demo));
+      details.append(legacy);
+    } else details.append(button('开启自动连接', () => this.run(() => this.host.connect()), '', !!this.host.demo));
     return details;
   }
   private accounts(main: HTMLElement): void {
@@ -379,13 +392,17 @@ export class PublisherUI {
     panel.append(el('div', 'sp-account-summary', el('h2', '', '小红书'), el('span', 'sp-muted', binding ? '已绑定' : '尚未绑定账号')));
     if (binding) panel.append(el('strong', 'sp-account-name', binding.nickname), el('p', 'sp-muted', binding.accountId));
     const feedback = el('div', 'sp-account-feedback'); feedback.setAttribute('role', 'status');
-    if (!state?.paired) {
-      feedback.append(el('p', '', connection.running ? '等待浏览器连接。粘贴连接码后，扩展会自动检测已登录的账号。' : '复制连接码，粘贴到浏览器扩展即可连接。'),
-        button('复制连接码', () => this.run(() => this.copyConnection()), 'sp-primary', !!this.host.demo));
-      const help = el('details', 'sp-account-help', el('summary', '', '连接帮助'),
-        el('p', 'sp-muted', '在已登录小红书的 Dia 或 Chrome 中打开扩展，粘贴连接码，点击「连接并检测账号」。保持扩展工作台打开，回来确认绑定即可。'),
-        button('安装浏览器扩展', () => window.open('https://zhangxun-ai.github.io/obsidian-social-publisher/browser-extension.html', '_blank'), 'sp-text'));
-      feedback.append(help);
+    if (connection.pendingApproval) {
+      const requestId = connection.pendingApproval.requestId;
+      feedback.append(el('p', '', '浏览器已找到此知识库，是否允许连接？'),
+        el('p', 'sp-muted', '连接后可识别小红书账号，并传输你确认的发布内容。以后自动重连。'),
+        el('div', 'sp-actions',
+          button('允许连接', () => this.run(() => this.host.approveBrowserConnection(requestId)), 'sp-primary'),
+          button('暂不连接', () => this.run(() => this.host.rejectBrowserConnection(requestId)))));
+    } else if (!state?.paired) {
+      feedback.append(el('p', '', this.host.demo ? '请在你的 Obsidian 知识库中连接浏览器。' : connection.running ? '打开浏览器扩展，将自动连接此知识库。' : '浏览器连接已关闭。'),
+        button(connection.running ? '安装 / 打开浏览器扩展' : '开启自动连接', () => connection.running ? this.openExtension() : this.run(() => this.host.connect()), 'sp-primary', !!this.host.demo));
+      if (connection.running) feedback.append(el('p', 'sp-muted', '已安装？点击 Dia 或 Chrome 工具栏中的 Social Publisher 图标。'));
     } else if (fresh && detected) {
       if (matching) feedback.append(el('p', '', '已核对账号，可用于发布。'));
       else feedback.append(el('strong', '', `${detected.nickname} · ${detected.accountId}`),
@@ -399,7 +416,7 @@ export class PublisherUI {
     }
     panel.append(feedback);
     if (state?.paired && (!detected || detection?.status === 'logged-out')) panel.append(button('打开小红书登录页', () => this.runtime?.openLogin(), 'sp-text', !this.runtime));
-    if (connection.running) panel.append(this.accountConnection());
+    panel.append(this.accountConnection());
     if (binding) {
       const manage = el('details', 'sp-account-help', el('summary', '', '管理账号'),
         button('解除当前知识库的账号绑定', () => this.run(async () => { await this.host.unbindAccount!(); this.host.notify('已解除本地绑定。'); }), 'sp-text'));
@@ -413,9 +430,9 @@ export class PublisherUI {
   }
   private settings(main:HTMLElement):void{
     this.heading(main,'设置','内容留在知识库，发布动作由你确认。');const layout=el('div','sp-settings-grid');const local=el('section','sp-panel');local.append(el('h2','','本地内容'));
-    let roots=this.host.settings.roots.join('\n');let port=this.host.settings.port;
+    let roots=this.host.settings.roots.join('\n');
     const dirs=el('textarea','sp-input');dirs.value=roots;dirs.rows=4;dirs.setAttribute('aria-label','内容目录');dirs.oninput=()=>roots=dirs.value;
-    local.append(field('内容目录（每行一个）',dirs,'相对于当前知识库。新增目录后保存，已有笔记保持原位。'),field('发布账号',button('管理平台与账号',()=>this.go('accounts'),'sp-text'),'登录和账号绑定在「平台与账号」中管理。'),field('本地连接端口',input(String(port),'本地连接端口',value=>port=Number(value),'number')),button('保存设置',()=>this.run(async()=>{await this.host.saveSettings({...this.host.settings,roots:roots.split('\n').map(s=>s.trim()).filter(Boolean),port});await this.reload(false);this.host.notify('设置已保存。');}),'sp-primary'));
+    local.append(field('内容目录（每行一个）',dirs,'相对于当前知识库。新增目录后保存，已有笔记保持原位。'),field('发布账号',button('管理平台与账号',()=>this.go('accounts'),'sp-text'),'登录和账号绑定在「平台与账号」中管理。'),button('保存设置',()=>this.run(async()=>{await this.host.saveSettings({...this.host.settings,roots:roots.split('\n').map(s=>s.trim()).filter(Boolean)});await this.reload(false);this.host.notify('设置已保存。');}),'sp-primary'));
     const browser=el('section','sp-panel');browser.append(el('h2','','浏览器辅助填写'),el('p','sp-muted','在「平台与账号」连接浏览器扩展并绑定小红书账号。'),button('管理平台与账号',()=>this.go('accounts'),'sp-primary'),el('p','sp-muted','填写后请在官方页面核对并发布。平台草稿与直接发布尚未开放。'));
     layout.append(local,browser);main.append(layout,this.updatePanel());
   }

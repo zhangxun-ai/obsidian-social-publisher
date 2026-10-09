@@ -17,7 +17,7 @@ for(const change of ['body','same-path-image']){
       accountState:()=>({binding:null,detection:null,connected:false,paired:false}),requestAccountDetection:async()=>{},bindAccount:async()=>{},unbindAccount:async()=>{},
       list:async()=>[structuredClone(pub)],save:async p=>p,create:async()=>pub,
       inspect:async()=>({publication:structuredClone(pub),text:pub.body,fingerprint:version,issues:[]}),
-      prepare:async()=>{preparations++;},records:()=>[],cancel:async()=>{},acknowledge:()=>{},mediaUrl:()=>'',searchImages:()=>[],openNote:()=>{},saveSettings:async()=>{},connect:async()=>{},disconnect:async()=>{},connection:()=>({running:false,port:27123,paired:false,token:''}),subscribe:()=>()=>{},notify:()=>{}};
+      prepare:async()=>{preparations++;},records:()=>[],cancel:async()=>{},acknowledge:()=>{},mediaUrl:()=>'',searchImages:()=>[],openNote:()=>{},saveSettings:async()=>{},connect:async()=>{},disconnect:async()=>{},approveBrowserConnection:async()=>{},rejectBrowserConnection:async()=>{},forgetBrowsers:async()=>{},connection:()=>({running:false,port:27123,paired:false,token:''}),subscribe:()=>()=>{},notify:()=>{}};
     const root=dom.window.document.getElementById('app');const ui=new PublisherUI(root,host);
     const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
     const findButton=(label:string)=>[...root.querySelectorAll('button')].find((b:any)=>b.textContent===label) as HTMLButtonElement;
@@ -42,7 +42,7 @@ test('account UI requires explicit confirmation and does not infer login from a 
   const host:PublisherHost={settings:{...DEFAULT_SETTINGS,configured:true,defaultAccount:'原账号备注'},
     accountState:()=>state,requestAccountDetection:async()=>{state.detection={requestId:'nonce',status:'waiting',checkedAt:Date.now()};},
     bindAccount:async(id)=>{confirmed.push(id);state.binding=state.detection!.account!;},unbindAccount:async()=>{state.binding=null;},
-    list:async()=>[pub],save:async p=>p,create:async()=>pub,inspect:async()=>({publication:pub,text:pub.body,fingerprint:'v',issues:[]}),prepare:async()=>{},records:()=>[],cancel:async()=>{},acknowledge:()=>{},mediaUrl:()=>'',searchImages:()=>[],openNote:()=>{},saveSettings:async()=>{},connect:async()=>{},disconnect:async()=>{},connection:()=>({running:true,port:27123,paired:true,token:'test-only'}),subscribe:()=>()=>{},notify:()=>{}};
+    list:async()=>[pub],save:async p=>p,create:async()=>pub,inspect:async()=>({publication:pub,text:pub.body,fingerprint:'v',issues:[]}),prepare:async()=>{},records:()=>[],cancel:async()=>{},acknowledge:()=>{},mediaUrl:()=>'',searchImages:()=>[],openNote:()=>{},saveSettings:async()=>{},connect:async()=>{},disconnect:async()=>{},approveBrowserConnection:async()=>{},rejectBrowserConnection:async()=>{},forgetBrowsers:async()=>{},connection:()=>({running:true,port:27123,paired:true,token:'test-only'}),subscribe:()=>()=>{},notify:()=>{}};
   const root=dom.window.document.getElementById('app');const ui=new PublisherUI(root,host,{version:'0.1.2',openLogin:()=>{loginCalls++;},checkForUpdates:async()=>{updateCalls++;}});
   const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
   const btn=(label:string)=>[...root.querySelectorAll('button')].find((b:any)=>b.textContent===label) as HTMLButtonElement;
@@ -64,46 +64,41 @@ test('account UI requires explicit confirmation and does not infer login from a 
   } finally {ui.destroy();dom.window.close();if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else Reflect.deleteProperty(globalThis,'document');}
 });
 
-test('account setup copies one raw connection code, starts the connection once and keeps technical details collapsed', async()=>{
+test('account setup asks once for browser approval and keeps legacy code copy available after pairing', async()=>{
   const dom=new JSDOM('<div id="app"></div>',{url:'http://localhost'});
   const oldDocument=Object.getOwnPropertyDescriptor(globalThis,'document');
   const oldNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
-  const copied:string[]=[];
+  const copied:string[]=[];const approved:string[]=[];const rejected:string[]=[];
   const connectionCode='A'.repeat(43);
   Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
   Object.defineProperty(globalThis,'navigator',{value:{clipboard:{writeText:async(text:string)=>{copied.push(text);}}},configurable:true});
-  let running=false,paired=false,connectCalls=0,loginCalls=0,detectionCalls=0;
-  let onChange=()=>{};
+  let paired=false,extensionCalls=0,connectCalls=0;
+  let pending:{requestId:string;expiresAt:number}|undefined;
   const host:PublisherHost={settings:{...DEFAULT_SETTINGS,configured:true},
-    accountState:()=>({binding:null,detection:null,connected:running,paired}),requestAccountDetection:async()=>{detectionCalls++;},bindAccount:async()=>{},unbindAccount:async()=>{},
+    accountState:()=>({binding:null,detection:null,connected:true,paired}),requestAccountDetection:async()=>{},bindAccount:async()=>{},unbindAccount:async()=>{},
     list:async()=>[],save:async p=>p,create:async()=>{throw new Error('unused');},inspect:async()=>{throw new Error('unused');},prepare:async()=>{},records:()=>[],cancel:async()=>{},acknowledge:()=>{},mediaUrl:()=>'',searchImages:()=>[],openNote:()=>{},saveSettings:async()=>{},
-    connect:async()=>{connectCalls++;await Promise.resolve();running=true;},disconnect:async()=>{},connection:()=>({running,paired,port:27123,token:running?connectionCode:''}),subscribe:fn=>{onChange=fn;return()=>{};},notify:()=>{}};
-  const root=dom.window.document.getElementById('app');const ui=new PublisherUI(root,host,{version:'test',vaultName:'独立合成测试库',openLogin:()=>{loginCalls++;},checkForUpdates:async()=>{}});
+    connect:async()=>{connectCalls++;},disconnect:async()=>{},approveBrowserConnection:async(id)=>{approved.push(id);pending=undefined;},rejectBrowserConnection:async(id)=>{rejected.push(id);pending=undefined;},
+    forgetBrowsers:async()=>{},connection:()=>({running:true,paired,port:27124,token:connectionCode,pendingApproval:pending}),subscribe:()=>()=>{},notify:()=>{}};
+  const root=dom.window.document.getElementById('app');const ui=new PublisherUI(root,host,{version:'test',vaultName:'独立合成测试库',openLogin:()=>{},openExtension:()=>{extensionCalls++;},checkForUpdates:async()=>{}});
   const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
   const btn=(label:string)=>[...root.querySelectorAll('button')].find((b:any)=>b.textContent===label) as HTMLButtonElement;
   try{
     await ui.mount();btn('平台与账号').click();
     assert.match(root.textContent,/当前知识库：独立合成测试库/);
-    assert.match(root.textContent,/复制连接码，粘贴到浏览器扩展即可连接/);
-    assert.equal(root.querySelector('.sp-account-connection'),null);
-    assert.equal(root.querySelector('.sp-account-help').open,false);
-    assert.equal(btn('检测登录状态'),undefined);
-    assert.equal(btn('打开小红书登录页'),undefined);
-    btn('复制连接码').click();await tick();
-    assert.equal(connectCalls,1);assert.equal(loginCalls,0);assert.equal(detectionCalls,0);
-    assert.deepEqual(copied,[connectionCode]);assert.equal(copied[0].length,43);
-    assert.match(root.textContent,/等待浏览器连接/);
-    const code=root.querySelector('[aria-label="连接码"]');
-    assert.equal(code.value,connectionCode);assert.equal(code.type,'password');assert.equal(code.readOnly,true);
+    assert.match(root.textContent,/将自动连接此知识库/);
     assert.equal(root.querySelector('.sp-account-connection').open,false);
     assert.equal(btn('检测登录状态'),undefined);
-    btn('复制连接码').click();await tick();
-    assert.equal(connectCalls,1);assert.deepEqual(copied,[connectionCode,connectionCode]);
+    btn('安装 / 打开浏览器扩展').click();assert.equal(extensionCalls,1);assert.equal(connectCalls,0);assert.deepEqual(copied,[]);
+    pending={requestId:'approval-1',expiresAt:Date.now()+60_000};await ui.reload();
+    assert.match(root.textContent,/是否允许连接/);assert.equal(btn('检测登录状态'),undefined);
+    btn('暂不连接').click();await tick();assert.deepEqual(rejected,['approval-1']);assert.deepEqual(approved,[]);
+    pending={requestId:'approval-2',expiresAt:Date.now()+60_000};await ui.reload();
+    btn('允许连接').click();await tick();assert.deepEqual(approved,['approval-2']);
+    paired=true;await ui.reload();assert.equal(btn('允许连接'),undefined);assert.equal(btn('检测登录状态').disabled,false);
     assert.equal(root.querySelector('.sp-account-connection').open,false);
-    paired=true;onChange();await new Promise(resolve=>setTimeout(resolve,220));
-    assert.equal(btn('检测登录状态').disabled,false);assert.equal(root.querySelector('.sp-account-connection').open,false);
-    assert.match(root.textContent,/尚未绑定账号/);
-    btn('检测登录状态').click();await tick();assert.equal(detectionCalls,1);
-    assert.equal(loginCalls,0);assert.equal(host.accountState().binding,null);
+    // Paired state used to remove the only copy button; legacy users still need a fallback.
+    btn('复制连接码').click();await tick();assert.deepEqual(copied,[connectionCode]);
+    const code=root.querySelector('[aria-label="连接码"]');assert.equal(code.value,connectionCode);assert.equal(code.type,'password');assert.equal(code.readOnly,true);
+    assert.equal(connectCalls,0);assert.equal(host.accountState().binding,null);
   }finally{ui.destroy();dom.window.close();if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else Reflect.deleteProperty(globalThis,'document');if(oldNavigator)Object.defineProperty(globalThis,'navigator',oldNavigator);else Reflect.deleteProperty(globalThis,'navigator');}
 });

@@ -1,14 +1,19 @@
 import { TFile, TFolder, type App, type Plugin } from 'obsidian';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { basename, dirname, posix, resolve, sep } from 'node:path';
 import { realpath } from 'node:fs/promises';
 import { parsePublication, normalizeImageReference, normalizeVaultPath, withinScope, validatePublication, toPlatformText, fingerprint, hashBytes } from './core';
 import type { Publication, Issue, ImageVersion } from './types';
 import { readFrontmatter, writePublication } from './storage';
-import { LocalBridge, type BridgeJob, type AccountDetectionReport, type AccountDetectionRequest } from './bridge';
+import { LocalBridge, BrowserConnectionError, type BrowserCredentials, type BrowserConnectionResult, type BridgeJob, type AccountDetectionReport, type AccountDetectionRequest } from './bridge';
 import { DEFAULT_SETTINGS, type PublisherHost, type PublisherSettings, type Preview, type RunRecord, type PlatformAccount, type AccountDetection, type AccountState } from './host';
 
 const ACCOUNT_DETECTION_TTL = 120_000;
+const BROWSER_APPROVAL_TTL = 60_000;
+const AUTO_CONNECTION_PORTS = [27123, 27124, 27125, 27126, 27127, 27128, 27129, 27130];
+type TrustedBrowser = {clientId: string; secretHash: string};
+type BrowserLink = {vaultId: string; trustedClients: TrustedBrowser[]};
+type PendingBrowser = TrustedBrowser & {requestId: string; expiresAt: number};
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp']);
 type Snapshot = { record: RunRecord; job: BridgeJob };
 
@@ -23,6 +28,13 @@ export class PublisherService implements PublisherHost {
   private detection: AccountDetection | null = null;
   private detectionExpiresAt = 0;
   private detectionTimer: ReturnType<typeof setTimeout> | null = null;
+  private browserLink: BrowserLink = {vaultId: randomUUID(), trustedClients: []};
+  private pendingBrowser: PendingBrowser | null = null;
+  private browserApprovalTimer: ReturnType<typeof setTimeout> | null = null;
+  private rejectedBrowsers = new Set<string>();
+  private connectionStart: Promise<void> | null = null;
+  private browserApprovalWrite: Promise<void> | null = null;
+  private forgettingBrowsers = false;
   readonly bridge: LocalBridge;
 
   constructor(private app: App, private plugin: Plugin, private notice: (text: string) => void) {
@@ -31,9 +43,12 @@ export class PublisherService implements PublisherHost {
       validateJob: id => this.validateSnapshot(id),
       validateAccount: (id, accountId) => this.validateAccount(id, accountId),
       connectionChanged: () => {
+        if (!this.bridge.running) { this.clearBrowserApproval(); this.rejectedBrowsers.clear(); }
         if (!this.bridge.running || !this.bridge.pairedExtensionId) this.clearDetection();
         this.emit();
       },
+      discovery: () => ({protocol: 2, vaultId: this.browserLink.vaultId, vaultName: this.app.vault.getName?.() || '当前知识库'}),
+      connectBrowser: credentials => this.connectBrowser(credentials),
       requestAccountDetection: () => this.requestAccountDetection(),
       accountRequest: () => this.accountRequest(),
       reportAccount: report => this.reportAccount(report),
@@ -61,24 +76,102 @@ export class PublisherService implements PublisherHost {
 
   async load(): Promise<void> {
     const data = await this.plugin.loadData();
+    let hasIdentity = false;
     if (data) {
       this.binding = this.publicAccount(data.boundAccount);
       this.settings = {...DEFAULT_SETTINGS, ...data.settings};
+      this.settings.autoConnect = this.settings.autoConnect !== false;
       this.settings.roots = this.settings.roots.map((root: string) => normalizeVaultPath(root));
+      const link = data.browserLink;
+      if (link && typeof link.vaultId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(link.vaultId)) {
+        const clients: unknown[] = Array.isArray(link.trustedClients) ? link.trustedClients : [];
+        const trustedClients: TrustedBrowser[] = [];
+        for (const client of clients) {
+          const item = client as Partial<TrustedBrowser> | null;
+          if (item && typeof item.clientId === 'string' && /^[A-Za-z0-9_-]{22}$/.test(item.clientId) &&
+            typeof item.secretHash === 'string' && /^[0-9a-f]{64}$/.test(item.secretHash) &&
+            !trustedClients.some(saved => saved.clientId === item.clientId)) trustedClients.push({clientId: item.clientId, secretHash: item.secretHash});
+          if (trustedClients.length === 5) break;
+        }
+        this.browserLink = {vaultId: link.vaultId, trustedClients};
+        hasIdentity = true;
+      }
       this.history = Array.isArray(data.records) ? data.records.slice(-300) : [];
       for (const record of this.history) {
         if (record.status === '已准备') { record.status = '需重新准备'; record.detail = '插件重新启动，请重新预览和准备此版本。'; }
         if (record.status === '正在填写') { record.status = '结果待核实'; record.detail = '填写期间插件已关闭，请先核对官方页面，系统不会自动重试。'; }
       }
     }
+    if (!hasIdentity) await this.persist();
   }
-  private persist(): Promise<void> {
-    this.writes = this.writes.catch(() => {}).then(() => this.plugin.saveData({settings: this.settings, boundAccount: this.binding, records: this.history.slice(-300)}));
+  private persist(browserLink?: BrowserLink): Promise<void> {
+    this.writes = this.writes.catch(() => {}).then(() => this.plugin.saveData({settings: this.settings, boundAccount: this.binding, records: this.history.slice(-300), browserLink: browserLink ?? this.browserLink}));
     return this.writes;
   }
   private emit(): void { for (const listener of this.listeners) listener(); }
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   notify(message: string): void { this.notice(message); }
+  private clearBrowserApproval(): void {
+    this.pendingBrowser = null;
+    if (this.browserApprovalTimer) clearTimeout(this.browserApprovalTimer);
+    this.browserApprovalTimer = null;
+  }
+  private currentBrowserApproval(): PendingBrowser | null {
+    if (this.pendingBrowser && Date.now() >= this.pendingBrowser.expiresAt) {
+      this.clearBrowserApproval();
+    }
+    return this.pendingBrowser;
+  }
+  private sameSecret(left: string, right: string): boolean {
+    return left.length === right.length && timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
+  }
+  private connectBrowser({clientId, clientSecret}: BrowserCredentials): BrowserConnectionResult {
+    if (!this.bridge.running) throw new BrowserConnectionError(409, '本地连接已关闭。');
+    const secretHash = createHash('sha256').update(clientSecret).digest('hex');
+    const trusted = this.browserLink.trustedClients.find(client => client.clientId === clientId);
+    if (trusted) {
+      if (!this.sameSecret(trusted.secretHash, secretHash)) throw new BrowserConnectionError(403, '浏览器凭证不匹配，请重新连接。');
+      return {status: 'connected'};
+    }
+    if (this.rejectedBrowsers.has(clientId)) throw new BrowserConnectionError(403, '此浏览器的连接申请已被拒绝，请重新开启本地连接后重试。');
+    const pending = this.currentBrowserApproval();
+    if (pending) {
+      if (pending.clientId !== clientId) throw new BrowserConnectionError(409, '已有浏览器等待确认，请先在 Obsidian 处理。');
+      if (!this.sameSecret(pending.secretHash, secretHash)) throw new BrowserConnectionError(403, '浏览器凭证不匹配，请重新连接。');
+      return {status: 'approval-required', requestId: pending.requestId, expiresAt: pending.expiresAt};
+    }
+    if (this.browserApprovalWrite) throw new BrowserConnectionError(409, '正在确认浏览器连接，请稍候。');
+    if (this.browserLink.trustedClients.length >= 5) throw new BrowserConnectionError(409, '已达到 5 个受信浏览器的上限。');
+    this.pendingBrowser = {clientId, secretHash, requestId: randomUUID(), expiresAt: Date.now() + BROWSER_APPROVAL_TTL};
+    this.browserApprovalTimer = setTimeout(() => { this.clearBrowserApproval(); this.emit(); }, BROWSER_APPROVAL_TTL);
+    this.browserApprovalTimer.unref?.();
+    this.notice('浏览器请求连接，请在「平台与账号」确认。');
+    this.emit();
+    return {status: 'approval-required', requestId: this.pendingBrowser.requestId, expiresAt: this.pendingBrowser.expiresAt};
+  }
+  async approveBrowserConnection(requestId: string): Promise<void> {
+    if (this.forgettingBrowsers) throw new Error('正在解除浏览器授权，请稍候。');
+    const pending = this.currentBrowserApproval();
+    if (!this.bridge.running || !pending || pending.requestId !== requestId) throw new Error('浏览器连接申请已过期，请重新连接。');
+    if (this.browserApprovalWrite) throw new Error('正在确认浏览器连接，请稍候。');
+    if (this.browserLink.trustedClients.length >= 5) throw new Error('已达到 5 个受信浏览器的上限。');
+    const approvedLink = {...this.browserLink, trustedClients: [...this.browserLink.trustedClients, {clientId: pending.clientId, secretHash: pending.secretHash}]};
+    const saving = (async () => {
+      await this.persist(approvedLink);
+      this.browserLink = approvedLink;
+      if (this.pendingBrowser?.requestId === requestId) this.clearBrowserApproval();
+      this.emit();
+    })();
+    this.browserApprovalWrite = saving;
+    try { await saving; } finally { this.browserApprovalWrite = null; }
+  }
+  async rejectBrowserConnection(requestId: string): Promise<void> {
+    if (this.browserApprovalWrite) throw new Error('正在确认浏览器连接，请稍候。');
+    const pending = this.currentBrowserApproval();
+    if (!pending || pending.requestId !== requestId) throw new Error('浏览器连接申请已过期。');
+    this.rejectedBrowsers.add(pending.clientId);
+    this.clearBrowserApproval(); this.emit();
+  }
   private publicAccount(value: unknown): PlatformAccount | null {
     if (!value || typeof value !== 'object') return null;
     const account = value as Partial<PlatformAccount>;
@@ -355,23 +448,58 @@ export class PublisherService implements PublisherHost {
     const roots = [...new Set(settings.roots.map(p => normalizeVaultPath(p.trim())))];
     if (roots.some(p => !p || p.startsWith('.') || !(this.app.vault.getAbstractFileByPath(p) instanceof TFolder))) throw new Error('请先在知识库创建这些目录，再保存设置。');
     if (!Number.isInteger(settings.port) || settings.port < 1024 || settings.port > 65535) throw new Error('端口须为 1024–65535 的整数。');
-    if (this.bridge.running && settings.port !== this.settings.port) await this.disconnect();
-    this.settings = {...settings, roots, configured: true}; await this.persist(); this.emit();
+    if (settings.autoConnect !== undefined && typeof settings.autoConnect !== 'boolean') throw new Error('自动连接设置无效。');
+    if (this.bridge.running && settings.port !== this.settings.port) await this.stopConnection();
+    this.settings = {...settings, roots, configured: true, autoConnect: settings.autoConnect ?? this.settings.autoConnect ?? true}; await this.persist(); this.emit();
+  }
+  async startConnection(): Promise<void> {
+    if (this.forgettingBrowsers) throw new Error('正在解除浏览器授权，请稍候。');
+    if (this.bridge.running) return;
+    if (this.connectionStart) return this.connectionStart;
+    this.connectionStart = (async () => {
+      const preferred = AUTO_CONNECTION_PORTS.includes(this.settings.port) ? this.settings.port : AUTO_CONNECTION_PORTS[0];
+      const ports = [...new Set([preferred, ...AUTO_CONNECTION_PORTS])];
+      for (const port of ports) {
+        try { await this.bridge.start(port); this.emit(); return; }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw new Error('无法开启本地连接，请稍后重试。');
+        }
+      }
+      throw new Error('本地连接端口均已被占用，请关闭其他知识库的 Social Publisher 连接后重试。');
+    })();
+    try { await this.connectionStart; } finally { this.connectionStart = null; }
   }
   async connect(): Promise<void> {
-    try { await this.bridge.start(this.settings.port); }
-    catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') throw new Error('连接端口已被占用。请先在其他知识库关闭 Social Publisher 连接，再回当前知识库复制连接码。');
-      throw new Error('无法开启本地连接，请检查「设置」中的连接端口后重试。');
-    }
-    this.emit();
+    await this.startConnection();
+    this.settings.autoConnect = true;
+    await this.persist(); this.emit();
   }
-  async disconnect(): Promise<void> {
+  private async stopConnection(): Promise<void> {
+    if (this.connectionStart) { try { await this.connectionStart; } catch { /* A failed start leaves no listener. */ } }
+    if (this.browserApprovalWrite) { try { await this.browserApprovalWrite; } catch { /* Failed approval must not prevent shutdown. */ } }
     await this.bridge.stop();
     this.clearDetection();
     for (const record of this.history) if (record.status === '正在填写') { record.status = '结果待核实'; record.detail = '本地连接已关闭，请核对官方页面，不会自动重发。'; }
     await this.persist(); this.emit();
   }
-  connection() { return {running: this.bridge.running, port: this.bridge.port || this.settings.port, paired: !!this.bridge.pairedExtensionId, token: this.bridge.token}; }
-  async dispose(): Promise<void> { await this.disconnect(); this.listeners.clear(); }
+  async disconnect(): Promise<void> { this.settings.autoConnect = false; await this.stopConnection(); }
+  async forgetBrowsers(): Promise<void> {
+    if (this.forgettingBrowsers) throw new Error('正在解除浏览器授权，请稍候。');
+    this.forgettingBrowsers = true;
+    this.settings.autoConnect = false;
+    try {
+      await this.stopConnection();
+      const forgotten = {...this.browserLink, trustedClients: []};
+      await this.persist(forgotten);
+      this.browserLink = forgotten;
+      this.emit();
+    } catch { throw new Error('未能保存浏览器授权更改，原授权已保留。本地连接已关闭，请稍后重试。'); }
+    finally { this.forgettingBrowsers = false; }
+  }
+  connection() {
+    const pending = this.currentBrowserApproval();
+    return {running: this.bridge.running, port: this.bridge.port || this.settings.port, paired: !!this.bridge.pairedExtensionId, token: this.bridge.token,
+      ...(pending ? {pendingApproval: {requestId: pending.requestId, expiresAt: pending.expiresAt}} : {})};
+  }
+  async dispose(): Promise<void> { await this.stopConnection(); this.listeners.clear(); }
 }

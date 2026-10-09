@@ -38,3 +38,9 @@ footer details { margin-top: 0; }
 [hidden] { display: none !important; }
 @media(max-width: 480px) { body { padding: 24px 18px; } header { margin-bottom: 20px; } #connect, #fill { width: 100%; } }
 @media(prefers-color-scheme: dark) { :root { color: #e7e7ed; background: #1e1e24; --accent: #bda8ff; --muted: #ababba; --line: #444451; --surface: #292930; } button { color: #201535; } .secondary { color: inherit; } .error { color: #ffb3a1; } [aria-invalid=true] { border-color: #ffb3a1 !important; } }
+
+#auto-connection { padding: 18px 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+#auto-connection .row { margin-top: 16px; }
+#choose-vault { margin-top: 12px; }
+#connection-recovery { font-size: 12px; }
+#connection-options { border-top: 1px solid var(--line); padding-top: 12px; }

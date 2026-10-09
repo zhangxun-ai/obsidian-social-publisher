@@ -4,10 +4,13 @@ import { build } from 'esbuild';
 import { resolve } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:net';
 import { fingerprint, hashBytes, listSections } from '../src/core';
 import { readFrontmatter } from '../src/storage';
 import type { PublisherService } from '../src/service';
 import type { createMockEnvironment } from './obsidian-mock';
+import { STORE_EXTENSION_ID } from '../src/bridge';
 
 type Environment = ReturnType<typeof createMockEnvironment>;
 type Runtime = { PublisherService: typeof PublisherService; createMockEnvironment: typeof createMockEnvironment };
@@ -552,13 +555,266 @@ test('a fresh matching DOM identity can claim after display detection expired, a
   assert.ok((await service.inspect(item.path)).issues.some(issue => issue.code === 'account-not-bound'));
 });
 
-test('a port used by another vault gives actionable recovery and leaves the new vault disconnected', async t => {
+test('two open vaults automatically use distinct ports without changing their preferred port or identities', async t => {
   const first = await fixture(); const second = await fixture();
   t.after(async () => { await first.service.dispose(); await second.service.dispose(); });
   await first.service.bridge.start(0);
   second.service.settings.port = first.service.bridge.port!;
-  await assert.rejects(second.service.connect(), /其他知识库.*关闭.*当前知识库.*复制连接码/);
-  assert.equal(second.service.connection().running, false);
-  assert.equal(second.service.connection().token, '');
+  const preferred = second.service.settings.port;
+  await second.service.startConnection();
+  assert.equal(second.service.connection().running, true);
+  assert.notEqual(second.service.connection().port, preferred);
+  assert.ok(second.service.connection().port >= 27123 && second.service.connection().port <= 27130);
+  assert.equal(second.service.settings.port, preferred);
   assert.equal(first.service.connection().running, true);
+  const discover = async (service: PublisherService) => (await fetch(`http://127.0.0.1:${service.connection().port}/discover`, {
+    method: 'POST', headers: {Origin: `chrome-extension://${STORE_EXTENSION_ID}`, 'Content-Type': 'application/json'}, body: '{}',
+  })).json();
+  assert.notEqual((await discover(first.service)).vaultId, (await discover(second.service)).vaultId);
+});
+
+const storeOrigin = `chrome-extension://${STORE_EXTENSION_ID}`;
+const browserCredentials = (suffix = 'a') => ({clientId: `${'c'.repeat(21)}${suffix}`, clientSecret: `${'s'.repeat(42)}${suffix}`});
+const automaticRequest = (service: PublisherService) => (path: string, body: unknown = {}, token?: string) => fetch(`http://127.0.0.1:${service.connection().port}${path}`, {
+  method: 'POST', headers: {Origin: storeOrigin, 'Content-Type': 'application/json', ...(token ? {Authorization: `Bearer ${token}`} : {})}, body: JSON.stringify(body),
+});
+
+test('first browser approval stores only its secret hash and reconnects the same vault after restart with fresh account detection', async t => {
+  const {api, env, service, plugin, notices} = await fixture();
+  await service.unbindAccount();
+  Object.defineProperty(env.vault, 'getName', {value: () => '合成知识库'});
+  assert.equal(service.connection().running, false);
+  assert.equal(service.settings.autoConnect, true);
+  await service.bridge.start(0);
+  t.after(() => service.dispose());
+  const call = automaticRequest(service);
+  const discovery = await (await call('/discover')).json();
+  assert.equal(discovery.vaultName, '合成知识库');
+  assert.deepEqual(Object.keys(discovery).sort(), ['protocol', 'vaultId', 'vaultName']);
+  assert.match(discovery.vaultId, /^[0-9a-f-]{36}$/);
+  const credentials = browserCredentials();
+  let changes = 0; service.subscribe(() => { changes += 1; });
+  const pending = await (await call('/connect', credentials)).json();
+  assert.equal(pending.status, 'approval-required');
+  assert.equal('token' in pending, false);
+  assert.deepEqual(service.connection().pendingApproval, {requestId: pending.requestId, expiresAt: pending.expiresAt});
+  assert.ok(changes > 0);
+  const requestChanges = changes;
+  assert.deepEqual(await (await call('/connect', credentials)).json(), pending);
+  assert.equal(changes, requestChanges);
+  assert.equal(notices.filter(message => message.includes('浏览器请求连接')).length, 1);
+  assert.equal((await call('/jobs')).status, 401);
+  assert.equal(service.accountState().detection, null);
+  await assert.rejects(service.approveBrowserConnection('wrong-request'), /过期/);
+  await service.approveBrowserConnection(pending.requestId);
+  assert.equal(service.connection().pendingApproval, undefined);
+  const stored = (plugin.data as unknown as {browserLink: {vaultId: string; trustedClients: {clientId: string; secretHash: string}[]}}).browserLink;
+  assert.deepEqual(stored.trustedClients, [{clientId: credentials.clientId, secretHash: createHash('sha256').update(credentials.clientSecret).digest('hex')}]);
+  assert.equal(JSON.stringify(plugin.data).includes(credentials.clientSecret), false);
+  const connected = await (await call('/connect', credentials)).json();
+  assert.equal(connected.status, 'connected');
+  assert.match(connected.token, /^[A-Za-z0-9_-]{43}$/);
+  const nonce = service.accountState().detection!.requestId;
+  assert.equal(service.accountState().detection?.status, 'waiting');
+  assert.deepEqual(await (await call('/connect', credentials)).json(), connected);
+  assert.equal(service.accountState().detection?.requestId, nonce);
+  assert.equal((await call('/account-result', {requestId: nonce, status: 'recognized', accountId: 'synthetic-account', nickname: '合成账号'}, connected.token)).status, 200);
+  assert.equal(service.accountState().binding, null);
+  assert.equal((await call('/jobs', {}, credentials.clientSecret)).status, 401);
+  assert.equal((await call('/jobs', {}, connected.token)).status, 200);
+  await service.dispose();
+  assert.equal(service.settings.autoConnect, true);
+  const restarted = new api.PublisherService(env.app, env.pluginApi, env.notice);
+  await restarted.load();
+  assert.equal(restarted.connection().running, false);
+  await restarted.startConnection();
+  t.after(() => restarted.dispose());
+  const restoredCall = automaticRequest(restarted);
+  assert.deepEqual(await (await restoredCall('/discover')).json(), discovery);
+  const restored = await (await restoredCall('/connect', credentials)).json();
+  assert.equal(restored.status, 'connected');
+  assert.notEqual(restored.token, connected.token);
+  assert.notEqual(restarted.accountState().detection?.requestId, nonce);
+  assert.equal((await restoredCall('/jobs', {}, connected.token)).status, 401);
+});
+
+test('pending browser approval cannot be replaced, approved after expiry, or reused after rejection or shutdown', async t => {
+  const {service} = await fixture();
+  await service.bridge.start(0);
+  t.after(() => service.dispose());
+  const call = automaticRequest(service);
+  const credentials = browserCredentials();
+  const pending = await (await call('/connect', credentials)).json();
+  assert.equal((await call('/connect', browserCredentials('b'))).status, 409);
+  assert.equal((await call('/connect', {...credentials, clientSecret: 'x'.repeat(43)})).status, 403);
+  assert.equal(service.connection().pendingApproval?.requestId, pending.requestId);
+  const realNow = Date.now;
+  try {
+    Date.now = () => pending.expiresAt;
+    assert.equal(service.connection().pendingApproval, undefined);
+    await assert.rejects(service.approveBrowserConnection(pending.requestId), /过期/);
+  } finally { Date.now = realNow; }
+  const replacement = await (await call('/connect', credentials)).json();
+  assert.equal(replacement.status, 'approval-required');
+  assert.notEqual(replacement.requestId, pending.requestId);
+  await service.rejectBrowserConnection(replacement.requestId);
+  assert.equal(service.connection().pendingApproval, undefined);
+  await assert.rejects(service.approveBrowserConnection(replacement.requestId), /过期/);
+  assert.equal((await call('/connect', credentials)).status, 403);
+  assert.equal((await call('/jobs')).status, 401);
+  const other = await (await call('/connect', browserCredentials('b'))).json();
+  await service.disconnect();
+  assert.equal(service.connection().pendingApproval, undefined);
+  await assert.rejects(service.approveBrowserConnection(other.requestId), /过期/);
+  await service.startConnection();
+  assert.equal((await (await call('/connect', credentials)).json()).status, 'approval-required');
+});
+
+test('trusted credentials reject a wrong secret and browser trust is limited to five approved clients', async t => {
+  const {service} = await fixture();
+  await service.bridge.start(0);
+  t.after(() => service.dispose());
+  const call = automaticRequest(service);
+  let previousNonce: string | undefined;
+  for (const suffix of ['a', 'b', 'c', 'd', 'e']) {
+    const credentials = browserCredentials(suffix);
+    const pending = await (await call('/connect', credentials)).json();
+    assert.equal(pending.status, 'approval-required');
+    await service.approveBrowserConnection(pending.requestId);
+    assert.equal((await (await call('/connect', credentials)).json()).status, 'connected');
+    assert.notEqual(service.accountState().detection?.requestId, previousNonce);
+    previousNonce = service.accountState().detection?.requestId;
+  }
+  assert.equal((await call('/connect', browserCredentials('f'))).status, 409);
+  assert.equal(service.connection().pendingApproval, undefined);
+  assert.equal((await call('/connect', {...browserCredentials(), clientSecret: 'x'.repeat(43)})).status, 403);
+  assert.equal(service.accountState().detection?.requestId, previousNonce);
+});
+
+test('automatic start preserves the user preference and only explicit connect or disconnect changes it', async t => {
+  const {service, plugin} = await fixture();
+  t.after(() => service.dispose());
+  await service.disconnect();
+  assert.equal(service.settings.autoConnect, false);
+  await service.startConnection();
+  assert.equal(service.settings.autoConnect, false);
+  await service.connect();
+  assert.equal(service.settings.autoConnect, true);
+  await service.dispose();
+  assert.equal(service.settings.autoConnect, true);
+  assert.equal((plugin.data?.settings as {autoConnect: boolean}).autoConnect, true);
+  assert.equal(service.connection().running, false);
+});
+
+test('a historical custom port remains saved while automatic connections listen inside the discovery range', async t => {
+  const {service, plugin} = await fixture();
+  t.after(() => service.dispose());
+  await service.saveSettings({...service.settings, port: 45123});
+  await service.startConnection();
+  assert.equal(service.settings.port, 45123);
+  assert.equal((plugin.data?.settings as {port: number}).port, 45123);
+  assert.ok(service.connection().port >= 27123 && service.connection().port <= 27130);
+  assert.notEqual(service.connection().port, 45123);
+  assert.equal((await (await automaticRequest(service)('/discover')).json()).protocol, 2);
+});
+
+test('all discovery ports occupied produce a clear error and leave the service stopped', async t => {
+  const {service} = await fixture();
+  const servers: ReturnType<typeof createServer>[] = [];
+  t.after(async () => { await service.dispose(); await Promise.all(servers.map(server => new Promise<void>(resolve => server.close(() => resolve())))); });
+  for (let port = 27123; port <= 27130; port += 1) {
+    const server = createServer();
+    try {
+      await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', () => resolve()); });
+      servers.push(server);
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error; }
+  }
+  await assert.rejects(service.startConnection(), /端口均已被占用/);
+  assert.equal(service.connection().running, false);
+  assert.equal(service.connection().token, '');
+});
+
+test('a failed approval save cannot grant an in-memory browser credential', async t => {
+  const {service, env} = await fixture();
+  await service.bridge.start(0);
+  const call = automaticRequest(service);
+  const credentials = browserCredentials();
+  const pending = await (await call('/connect', credentials)).json();
+  const save = env.pluginApi.saveData;
+  env.pluginApi.saveData = async () => { throw new Error('synthetic save failure'); };
+  try {
+    await assert.rejects(service.approveBrowserConnection(pending.requestId), /synthetic save failure/);
+    assert.equal((await (await call('/connect', credentials)).json()).status, 'approval-required');
+    assert.equal(service.connection().paired, false);
+  } finally { env.pluginApi.saveData = save; }
+  t.after(() => service.dispose());
+});
+
+test('approval grants no token before its save completes and a queued settings save preserves the new trust', async t => {
+  const {service, env, plugin} = await fixture();
+  await service.bridge.start(0);
+  t.after(() => service.dispose());
+  const call = automaticRequest(service); const credentials = browserCredentials();
+  const pending = await (await call('/connect', credentials)).json();
+  let entered!: () => void; let release!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const save = env.pluginApi.saveData; let first = true;
+  env.pluginApi.saveData = async data => { if (first) { first = false; entered(); await waiting; } await save.call(env.pluginApi, data); };
+  try {
+    const approval = service.approveBrowserConnection(pending.requestId);
+    await reached;
+    assert.equal((await (await call('/connect', credentials)).json()).status, 'approval-required');
+    const settings = service.saveSettings({...service.settings, defaultAccount: '更新合成备注'});
+    release();
+    await Promise.all([approval, settings]);
+    assert.equal((plugin.data as unknown as {browserLink: {trustedClients: unknown[]}}).browserLink.trustedClients.length, 1);
+    assert.equal((await (await call('/connect', credentials)).json()).status, 'connected');
+  } finally { release(); env.pluginApi.saveData = save; }
+});
+
+test('forgetting browsers revokes saved trust, pending requests and the live token while preserving works, binding and tasks', async t => {
+  const {service, env, vault, plugin} = await fixture();
+  const item = seedPublication(env, 'forget-trust');
+  const preview = await service.inspect(item.path);
+  await service.prepare([{path: item.path, fingerprint: preview.fingerprint}]);
+  const records = service.records(); const binding = service.accountState().binding;
+  await service.bridge.start(0);
+  t.after(() => service.dispose());
+  const call = automaticRequest(service);
+  const credentials = browserCredentials();
+  const pending = await (await call('/connect', credentials)).json();
+  await service.approveBrowserConnection(pending.requestId);
+  const {token} = await (await call('/connect', credentials)).json();
+  const other = await (await call('/connect', browserCredentials('b'))).json();
+  await service.forgetBrowsers();
+  assert.equal(service.connection().running, false);
+  assert.equal(service.connection().pendingApproval, undefined);
+  assert.equal(service.settings.autoConnect, false);
+  assert.equal(service.connection().token, '');
+  await assert.rejects(service.approveBrowserConnection(other.requestId), /过期/);
+  assert.deepEqual(service.records(), records);
+  assert.deepEqual(service.accountState().binding, binding);
+  assert.equal(vault.text(item.path), item.raw);
+  assert.deepEqual((plugin.data as unknown as {browserLink: {trustedClients: unknown[]}}).browserLink.trustedClients, []);
+  await service.startConnection();
+  assert.equal((await call('/jobs', {}, token)).status, 401);
+  assert.equal((await (await call('/connect', credentials)).json()).status, 'approval-required');
+});
+
+test('a failed trust-revocation save preserves the prior trust and keeps the listener stopped for recovery', async t => {
+  const {service, env} = await fixture();
+  await service.bridge.start(0);
+  t.after(() => service.dispose());
+  const call = automaticRequest(service); const credentials = browserCredentials();
+  const pending = await (await call('/connect', credentials)).json();
+  await service.approveBrowserConnection(pending.requestId);
+  const save = env.pluginApi.saveData; let saves = 0;
+  env.pluginApi.saveData = async data => { if (++saves === 2) throw new Error('synthetic save failure'); await save.call(env.pluginApi, data); };
+  try { await assert.rejects(service.forgetBrowsers(), /原授权已保留.*本地连接已关闭/); }
+  finally { env.pluginApi.saveData = save; }
+  assert.equal(service.connection().running, false);
+  assert.equal(service.settings.autoConnect, false);
+  await service.startConnection();
+  assert.equal((await (await call('/connect', credentials)).json()).status, 'connected');
 });

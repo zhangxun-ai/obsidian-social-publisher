@@ -24,11 +24,12 @@ export interface PublisherSettings {
   roots: string[];
   defaultAccount: string;
   port: number;
+  autoConnect?: boolean;
 }
 export const DEFAULT_SETTINGS: PublisherSettings = {
   configured: false,
   roots: ['02-项目/内容IP变现/03-平台与发布/发布'],
-  defaultAccount: '', port: 27123
+  defaultAccount: '', port: 27123, autoConnect: true
 };
 export interface Preview {
   publication: Publication;
@@ -71,7 +72,10 @@ export interface PublisherHost {
   saveSettings(settings: PublisherSettings): Promise<void>;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
-  connection(): {running: boolean; port: number; paired: boolean; token: string};
+  approveBrowserConnection(requestId: string): Promise<void>;
+  rejectBrowserConnection(requestId: string): Promise<void>;
+  forgetBrowsers(): Promise<void>;
+  connection(): {running: boolean; port: number; paired: boolean; token: string; pendingApproval?: {requestId: string; expiresAt: number}};
   subscribe(listener: () => void): () => void;
   notify(message: string): void;
 }

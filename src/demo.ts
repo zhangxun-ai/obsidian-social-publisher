@@ -46,6 +46,9 @@ class DemoHost implements PublisherHost{
   searchImages(query:string){return ['fixtures/step-1.png','fixtures/step-2.png',...names.map((_,i)=>`fixtures/cover-${i+1}.png`)].filter(p=>p.includes(query));}
   openNote(){this.notify('浏览器为合成预览。真实笔记请在 Obsidian 插件中打开。');}
   async saveSettings(settings:typeof this.settings){this.settings={...settings,configured:true};this.emit();}
+  async approveBrowserConnection(){throw new Error('合成预览不会连接真实浏览器。');}
+  async rejectBrowserConnection(){}
+  async forgetBrowsers(){}
   async connect(){throw new Error('合成预览不连接浏览器。');}async disconnect(){}
   connection(){return{running:false,port:27123,paired:false,token:''};}
   subscribe(fn:()=>void){this.listeners.add(fn);return()=>this.listeners.delete(fn);}
@@ -53,4 +56,4 @@ class DemoHost implements PublisherHost{
   notify(text:string){const toast=document.createElement('div');toast.className='demo-toast';toast.textContent=text;document.body.append(toast);setTimeout(()=>toast.remove(),4000);}
 }
 const host=new DemoHost();
-const ui=new PublisherUI(document.getElementById('app')!,host,{vaultName:'合成示例知识库',version:'0.1.5（合成预览）',openLogin:()=>host.notify('合成预览不执行登录，请在 Obsidian 中使用。'),checkForUpdates:async()=>host.notify('请在 Obsidian 中通过 BRAT 更新，本页为合成预览。')});void ui.mount();
+const ui=new PublisherUI(document.getElementById('app')!,host,{vaultName:'合成示例知识库',version:'0.1.6（合成预览）',openLogin:()=>host.notify('合成预览不执行登录，请在 Obsidian 中使用。'),checkForUpdates:async()=>host.notify('请在 Obsidian 中通过 BRAT 更新，本页为合成预览。')});void ui.mount();

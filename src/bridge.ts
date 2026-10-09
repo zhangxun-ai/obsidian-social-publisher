@@ -12,6 +12,13 @@ export interface AccountDetectionReport {
   accountId?: string;
   nickname?: string;
 }
+export interface BrowserDiscovery { protocol: 2; vaultId: string; vaultName: string; }
+export interface BrowserCredentials { clientId: string; clientSecret: string; }
+export type BrowserConnectionResult = {status: 'connected'} | {status: 'approval-required'; requestId: string; expiresAt: number};
+export class BrowserConnectionError extends Error {
+  constructor(readonly status: 403 | 409, message: string) { super(message); }
+}
+export const STORE_EXTENSION_ID = 'lomabfdifikkjdpkdlbpkbaeopglanna';
 
 export type BridgeResultStatus = '待人工确认' | '失败' | '结果待核实';
 
@@ -42,6 +49,8 @@ export interface BridgeProvider {
   accountRequest?(): AccountDetectionRequest | null;
   reportAccount?(report: AccountDetectionReport): void;
   connectionChanged?(): void;
+  discovery?(): BrowserDiscovery;
+  connectBrowser?(credentials: BrowserCredentials): BrowserConnectionResult | Promise<BrowserConnectionResult>;
   /** Throw if the confirmed source, selected images, or their bytes have changed. */
   validateJob(id: string): void | Promise<void>;
   report(id: string, status: BridgeResultStatus, detail: string): void | Promise<void>;
@@ -63,6 +72,7 @@ export class LocalBridge {
   private sessionToken = '';
   private listenPort: number | null = null;
   private extensionId: string | null = null;
+  private browserClientId: string | null = null;
   private currentTaskId: string | null = null;
   private currentJob: BridgeJob | null = null;
   private readonly claimed = new Set<string>();
@@ -88,6 +98,7 @@ export class LocalBridge {
     this.server = server;
     this.sessionToken = randomBytes(32).toString('base64url');
     this.extensionId = null;
+    this.browserClientId = null;
     this.session += 1;
     try {
       await new Promise<void>((resolve, reject) => {
@@ -116,6 +127,7 @@ export class LocalBridge {
     this.server = null;
     this.sessionToken = '';
     this.extensionId = null;
+    this.browserClientId = null;
     this.listenPort = null;
     this.currentJob = null;
     this.session += 1;
@@ -222,16 +234,17 @@ export class LocalBridge {
       if (typeof origin !== 'string' || !EXTENSION_ORIGIN.test(origin)) {
         throw new RequestError(403, '只接受配套浏览器扩展。');
       }
-      if (this.extensionId && EXTENSION_ORIGIN.exec(origin)![1] !== this.extensionId) {
-        throw new RequestError(403, '本次会话已绑定其他扩展。');
-      }
       response.setHeader('Access-Control-Allow-Origin', origin);
       response.setHeader('Vary', 'Origin');
       if (!request.url?.startsWith('/') || request.url.startsWith('//')) throw new RequestError(400, '路径无效。');
       const url = new URL(request.url, `http://127.0.0.1:${this.listenPort}`);
       if (url.search) throw new RequestError(400, '接口不接受查询参数。');
       const path = url.pathname;
-      const known = ['/pair', '/status', '/jobs', '/claim', '/result', '/account-detect', '/account-request', '/account-result'].includes(path) || /^\/media\/[^/]+\/\d+$/.test(path);
+      const discoveryEndpoint = path === '/discover' || path === '/connect';
+      const originId = EXTENSION_ORIGIN.exec(origin)![1];
+      if (discoveryEndpoint && originId !== STORE_EXTENSION_ID) throw new RequestError(403, '自动连接只接受官方商店扩展。');
+      if (path !== '/discover' && this.extensionId && originId !== this.extensionId) throw new RequestError(403, '本次会话已绑定其他扩展。');
+      const known = ['/discover', '/connect', '/pair', '/status', '/jobs', '/claim', '/result', '/account-detect', '/account-request', '/account-result'].includes(path) || /^\/media\/[^/]+\/\d+$/.test(path);
       if (!known) throw new RequestError(404, '没有此接口。');
       if (request.method === 'OPTIONS') {
         const method = request.headers['access-control-request-method'];
@@ -242,6 +255,36 @@ export class LocalBridge {
         response.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST',
           'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '60' });
         response.end();
+        return;
+      }
+      if (discoveryEndpoint) {
+        if (request.method !== 'POST') throw new RequestError(405, '请求方法不支持。');
+        const body = await this.body(request);
+        if (session !== this.session) return;
+        if (path === '/discover') {
+          if (Object.keys(body).length) throw new RequestError(400, '发现请求不接受其他数据。');
+          const info = this.provider.discovery?.();
+          if (!info) throw new RequestError(409, '当前插件不支持自动连接，请更新插件。');
+          this.json(response, 200, {protocol: 2, vaultId: info.vaultId, vaultName: info.vaultName});
+        } else {
+          if (Object.keys(body).length !== 2 || typeof body.clientId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(body.clientId) ||
+            typeof body.clientSecret !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.clientSecret) ||
+            Object.keys(body).some(key => !['clientId', 'clientSecret'].includes(key))) throw new RequestError(400, '浏览器连接凭证无效。');
+          if (!this.provider.connectBrowser) throw new RequestError(409, '当前插件不支持自动连接，请更新插件。');
+          const result = await this.provider.connectBrowser({clientId: body.clientId, clientSecret: body.clientSecret});
+          if (session !== this.session) return;
+          if (result.status === 'connected') {
+            const changed = this.extensionId !== originId || this.browserClientId !== body.clientId;
+            this.extensionId = originId;
+            this.browserClientId = body.clientId;
+            if (changed) {
+              this.provider.connectionChanged?.();
+              await this.provider.requestAccountDetection?.();
+              if (session !== this.session) return;
+            }
+            this.json(response, 200, {status: 'connected', token: this.sessionToken});
+          } else this.json(response, 200, {status: 'approval-required', requestId: result.requestId, expiresAt: result.expiresAt});
+        }
         return;
       }
       this.authorize(request, origin, path !== '/pair');
@@ -258,6 +301,7 @@ export class LocalBridge {
         if (session !== this.session) return;
         this.authorize(request, origin, false);
         this.extensionId = EXTENSION_ORIGIN.exec(origin)![1];
+        this.browserClientId = null;
         this.provider.connectionChanged?.();
         await this.provider.requestAccountDetection?.();
         if (session !== this.session) return;
@@ -374,8 +418,9 @@ export class LocalBridge {
       } else { throw new RequestError(405, '请求方法不支持。'); }
     } catch (error) {
       if (session !== this.session) return;
-      this.json(response, error instanceof RequestError ? error.status : 500,
-        { error: error instanceof RequestError ? error.message : '本地桥接处理失败，请回到 Obsidian 核实。' });
+      const publicError = error instanceof RequestError || error instanceof BrowserConnectionError;
+      this.json(response, publicError ? error.status : 500,
+        { error: publicError ? error.message : '本地桥接处理失败，请回到 Obsidian 核实。' });
     }
   }
 }

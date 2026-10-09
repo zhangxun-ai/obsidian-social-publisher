@@ -1,6 +1,6 @@
 // The action opens one persistent workspace. No background polling or page injection.
 let opening = false;
-chrome.action.onClicked.addListener(() => {
+function openWorkspace() {
   if (opening) return;
   opening = true;
   void (async () => {
@@ -18,4 +18,8 @@ chrome.action.onClicked.addListener(() => {
       } else await chrome.tabs.create({ url });
     } finally { opening = false; }
   })();
+}
+chrome.action.onClicked.addListener(openWorkspace);
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') openWorkspace();
 });

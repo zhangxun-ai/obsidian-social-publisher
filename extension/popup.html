@@ -9,17 +9,22 @@
 <body><main>
   <header><h1>小红书</h1><span id="connection-state">未连接 Obsidian</span></header>
   <p id="status" role="status" aria-live="polite"></p>
-  <section id="connection-panel">
-  <h2>连接 Obsidian</h2>
-  <p class="muted">在 Obsidian「平台与账号」点击“复制连接码”，粘贴到这里。</p>
-  <label for="token">连接码</label><input id="token" type="password" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" spellcheck="false" aria-describedby="connection-error" placeholder="粘贴连接码">
-  <p id="connection-error" class="error" role="alert" hidden></p>
-  <button id="connect">连接并检测账号</button>
+  <section id="auto-connection">
+    <h2>连接 Obsidian</h2>
+    <p id="discovery-status" role="status">正在查找已打开的知识库…</p>
+    <div id="vault-picker" hidden><label for="vaults">选择要连接的知识库</label><select id="vaults"><option value="">请选择知识库</option></select><button id="choose-vault">连接此知识库</button></div>
+    <div class="row"><a id="open-obsidian" href="obsidian://" hidden>打开 Obsidian</a><button id="retry-connection" class="secondary" hidden>重新查找</button></div>
   </section>
-  <details id="connection-options"><summary>连接设置</summary>
-  <label for="port">连接端口</label><input id="port" type="number" value="27123" min="1024" max="65535">
-  <p class="muted">通常无需修改；应与 Obsidian 中显示的端口一致。</p>
-  <button id="forget" class="secondary" hidden>断开连接</button>
+  <button id="connection-recovery" class="text-button">连接有问题？</button>
+  <details id="connection-options" hidden><summary>高级连接与旧版兼容</summary>
+    <section id="connection-panel">
+      <p class="muted">旧版插件可在 Obsidian「平台与账号」复制连接码，粘贴到这里。</p>
+      <label for="token">连接码</label><input id="token" type="password" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" spellcheck="false" aria-describedby="connection-error" placeholder="粘贴旧版连接码">
+      <label for="port">连接端口</label><input id="port" type="number" value="27123" min="1024" max="65535">
+      <p id="connection-error" class="error" role="alert" hidden></p>
+      <button id="connect">使用连接码</button>
+    </section>
+    <button id="forget" class="secondary" hidden>断开连接</button>
   </details>
   <section id="account-panel" hidden>
   <h2>小红书账号</h2>
@@ -37,7 +42,7 @@
   <p class="muted">保持此工作台打开。填写后请到小红书核实，再自行发布。</p>
   </section>
   <section id="jobs-panel" hidden><p id="jobs-empty" class="muted">绑定账号后，在 Obsidian 创建填写任务。</p><button id="refresh-jobs" class="text-button">刷新待填写作品</button></section>
-  <footer><details><summary>关于辅助填写</summary><p>实验功能，仅填写已确认的图文。图片、话题和原创声明需在小红书核实；不会点击发布或保存草稿。操作中断后不会自动重试，请先核实网页，再回 Obsidian 确认该篇已处理。</p><p>账号密码留在浏览器中，连接码仅保存在当前浏览器会话。</p></details></footer>
+  <footer><details><summary>关于辅助填写</summary><p>实验功能，仅填写已确认的图文。图片、话题和原创声明需在小红书核实；不会点击发布或保存草稿。操作中断后不会自动重试，请先核实网页，再回 Obsidian 确认该篇已处理。</p><p>账号密码留在浏览器中。首次连接须在 Obsidian 确认；浏览器仅保存本扩展的随机连接身份，当前连接授权保存在浏览器会话中。</p></details></footer>
   <script src="popup.js"></script>
 </main></body>
 </html>
