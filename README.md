@@ -1,3 +1,9 @@
+<!-- project-cover:20261101:start -->
+<p align="center">
+  <img src="assets/project-cover-20261101.webp" alt="Social Publisher — AI-designed project cover" width="1280" />
+</p>
+<!-- project-cover:20261101:end -->
+
 # Social Publisher
 
 在 Obsidian 中整理图文、关联本地素材、核对实际填写内容，再辅助填写小红书官方图文编辑页。

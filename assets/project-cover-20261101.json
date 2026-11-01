@@ -1,0 +1,14 @@
+{
+  "project": "zhangxun-ai/obsidian-social-publisher",
+  "createdOn": "2026-11-01",
+  "generator": "GPT Image via built-in imagegen",
+  "template": "Poster Layout System / poster-layout-system",
+  "purpose": "Abstract project branding cover, not a screenshot or proof of product output",
+  "prompt": "用途：GitHub README 顶部封面及个人网站 150px 宽项目卡片。Poster Layout System 单张最终成品横版海报，16:9。统一系列：近黑炭色背景，高级独立技术刊物气质，现代瑞士字体，暖象牙大标题，真实雕塑材质，克制的胶片颗粒与精密线条。主题物体只有一个强焦点，以左侧大标题和右侧主体形成平衡；主体和标题均在左右 8% 安全区域内，标题足够大，底部 15% 低细节区域留给网站叠加名称。大面积深色留白，不做软件界面，不做应用截图。文字逐字准确，不额外添加口号、数据、序号、徽章、水印、说明或小字。无浏览器/设备外壳，无伪造仪表盘，无卡片网格，无机器人、光球、星空，无第三方商标。不要边框和圆角。\n项目 Social Publisher：在 Obsidian 中准备图文作品与本地素材，并辅助填写社交编辑器。主视觉是一枚深紫色半透明黑曜石切面棱晶，旁边有三张轻微旋转、层叠展开的厚纸艺术小卡片，卡片只有黑白几何摄影块与留白，没有字或界面。表现个人笔记变成精心准备的图文创作，精确的斜边反光和纸纹。紫罗兰、银白、少许暖灰，深黑留白。仅标题 \"Social Publisher\"，分成两行，左侧大字；不要 Obsidian 官方图标，不要伪造发布成功或社交指标，不要花瓣或发光魔法。",
+  "cover": {
+    "filename": "project-cover-20261101.webp",
+    "width": 1280,
+    "height": 720,
+    "sha256": "2772337c16420186762c8078c141491095d004ed05c6e53ad2ef1a2ba5640eaf"
+  }
+}
